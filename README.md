@@ -14,9 +14,18 @@
 
 ---
 
-**金刚琢（RingCode）** 专为多 Agent 协作时代的开发者打造。将**本地文件管理器、Monaco 代码编辑器、ConPTY 深度定制终端**与 **Claude Code / Codex / OpenCode / Antigravity CLI / Hermes** 深度融合在同一个三栏驾驶舱窗口中。
+### 📖 命名渊源与设计哲学
 
-告别在浏览器、多个 CMD/PowerShell 窗口以及独立编辑器之间频繁切屏复制粘贴；以后接入新的 CLI Agent 只需一行适配器，全部交互统一闭环。
+> *“当年过函谷关，化胡为佛，甚是亏它。早晚最可防身。等我丢下去打他一下。” ——《西游记》第六回*  
+> *“这件物，本是锟钢抟炼的，被我将甚神丹点化，着了一点灵气，变化无穷，水火不侵，又能套诸物，一名‘金钢琢’，又名‘金钢套’。” ——《西游记》第五十二回*
+
+在古典神话中，太上老君的**金刚琢**（又名金钢套）是锟钢抟就、神丹点化的无上至宝，**水火不侵、能套诸般兵刃法宝，可纳天地万物**。
+
+迈入大模型与多 Agent 协同时代，开发者的武器库迎来了前所未有的爆发：Claude Code、OpenAI Codex、OpenCode、Google Antigravity CLI、Hermes…… 各路命令行 Agent 神兵利器层出不穷。然而，随之而来的却是工具碎片化、终端与编辑器割裂、频繁切屏粘贴以及上下文丢失的混乱。
+
+**金刚琢（RingCode）** 承载着这一文化意向应运而生：
+- 🌀 **纳万物**：取金刚琢“收纳万物神兵”之意，将各路 CLI Agent、Monaco 编辑器、ConPTY 深度定制原生终端、工作区文件系统与 Git 全要素收纳归一；
+- 🎯 **归一琢**：化繁为简，归于一处。告别分散无序的多窗口疲惫切换，以一个本地优先、系统级受控的“驾驶舱”，套住各路 Agent 神兵，**纳天下 Agent 为我所用，如臂使指**。
 
 ---
 
@@ -64,10 +73,10 @@
 
 ### 1. 二进制免安装运行（推荐）
 
-前往 [Releases](../../releases) 页面下载最新版发布包：
-1. 下载 `金刚琢.zip`；
+前往 [GitHub Releases](https://github.com/diaoerlangdang/RingCode/releases) 页面下载最新版绿色安装包：
+1. 下载预编译的 `金刚琢.zip`；
 2. 解压至本地任意目录；
-3. 双击运行 `金刚琢.exe` 即可使用。
+3. 双击运行 `金刚琢.exe` 即可使用（开箱即用，无需配置 Node.js 或 C++ 编译环境）。
 
 ### 2. 源码本地运行与开发
 
@@ -79,7 +88,7 @@
 #### 启动开发
 ```bash
 # 1. 克隆代码仓库
-git clone https://github.com/your-username/RingCode.git
+git clone https://github.com/diaoerlangdang/RingCode.git
 cd RingCode
 
 # 2. 安装依赖
@@ -147,7 +156,7 @@ RingCode/
 ## 🤝 贡献与反馈
 
 欢迎提出功能想法、提交 Issue 或发起 Pull Request！
-如遇到使用问题，请在 [GitHub Issues](../../issues) 提交时附带必要复现步骤。
+如遇到使用问题，请在 [GitHub Issues](https://github.com/diaoerlangdang/RingCode/issues) 提交时附带必要复现步骤。
 
 ---
 
