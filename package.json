@@ -1,0 +1,53 @@
+{
+  "name": "ringcode",
+  "version": "0.3.1",
+  "description": "金刚琢 - 以本地工作区为中心的 Windows 原生 AI 工作台",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "electron-dist/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit && tsc -p electron/tsconfig.electron.json --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "electron:typecheck": "tsc -p electron/tsconfig.electron.json --noEmit",
+    "electron:compile": "tsc -p electron/tsconfig.electron.json",
+    "electron:dev": "tsc -p electron/tsconfig.electron.json && concurrently -k -n vite,app \"vite --port 5174 --strictPort\" \"wait-on tcp:5174 && cross-env VITE_DEV_SERVER_URL=http://localhost:5174 electron .\"",
+    "electron:build": "tsc -p electron/tsconfig.electron.json && vite build && electron-builder"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "^4.6.0",
+    "@napi-rs/keyring": "^1.3.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-web-links": "^0.11.0",
+    "@xterm/xterm": "^5.5.0",
+    "better-sqlite3": "^12.11.1",
+    "dompurify": "^3.1.7",
+    "marked": "^14.1.3",
+    "monaco-editor": "^0.55.1",
+    "node-pty": "^1.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@electron/rebuild": "^4.2.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^20.19.43",
+    "@types/react": "^18.3.11",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.2",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^31.7.7",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.9",
+    "vitest": "^4.1.10",
+    "wait-on": "^9.0.10"
+  }
+}

@@ -1,0 +1,85 @@
+/* 基础重置与全局样式 */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
+}
+
+body {
+  font-family: var(--font-ui);
+  background: var(--bg-app);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+button {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  cursor: pointer;
+  background: none;
+  border: none;
+}
+
+input {
+  font-family: inherit;
+}
+
+a {
+  color: var(--accent-text);
+}
+
+/* 滚动条（深色优先，浅色自适应） */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-3);
+  background-clip: padding-box;
+  border: 2px solid transparent;
+}
+
+/* 焦点环（可访问性 §10.4） */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* 选中文本 */
+::selection {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+/* xterm 容器填满。不要给 .xterm 加 padding：FitAddon 按外框算行列，内边距会让 TUI 折行错位、光标看不见。 */
+.xterm {
+  height: 100%;
+  width: 100%;
+  padding: 0;
+}
+.xterm-viewport {
+  background: transparent !important;
+}

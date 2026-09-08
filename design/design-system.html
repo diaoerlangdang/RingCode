@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 设计系统 · Token + 组件 + 标注</title>
+<style>
+  :root {
+    --page-bg: #f0f0f0;
+    --card-bg: #ffffff;
+    --card-border: #e0e0e0;
+    --text: #333333;
+    --text-2: #666666;
+    --text-3: #999999;
+    --accent: #0969da;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--page-bg); color: var(--text); padding: 32px; font-size: 13px; line-height: 1.6; }
+  h1 { font-size: 22px; margin-bottom: 8px; }
+  .subtitle { color: var(--text-3); margin-bottom: 28px; }
+  h2 { font-size: 16px; margin: 24px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--card-border); }
+  h3 { font-size: 13px; color: var(--text-2); margin: 18px 0 10px; }
+  .section { background: var(--card-bg); border: 1px solid var(--card-border); border-radius: 12px; padding: 24px; margin-bottom: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+
+  /* Token grids */
+  .token-grid { display: grid; grid-template-columns: repeat(auto-fill, 130px); gap: 12px; }
+  .token-card { border: 1px solid var(--card-border); border-radius: 8px; overflow: hidden; }
+  .swatch { height: 56px; }
+  .token-info { padding: 8px 10px; }
+  .token-name { font-size: 11px; font-weight: 600; color: var(--text); font-family: "JetBrains Mono", monospace; }
+  .token-value { font-size: 10px; color: var(--text-3); font-family: "JetBrains Mono", monospace; margin-top: 2px; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--card-border); font-size: 12px; }
+  th { color: var(--text-2); font-weight: 600; background: #fafafa; }
+  td { font-family: "JetBrains Mono", monospace; color: var(--text); }
+  td.desc { font-family: inherit; color: var(--text-2); }
+
+  /* Component examples */
+  .component-row { display: flex; align-items: center; gap: 16px; margin: 12px 0; padding: 12px; background: #fafafa; border-radius: 8px; border: 1px dashed #ddd; }
+  .component-label { width: 120px; color: var(--text-2); font-size: 11px; flex-shrink: 0; }
+
+  /* Shared component styles (light theme default) */
+  .btn { padding: 8px 16px; border-radius: 8px; font-size: 12px; border: 1px solid #d0d7de; background: #f3f4f6; color: #656d76; }
+  .btn.primary { background: #0969da; color: #fff; border-color: #0969da; font-weight: 600; }
+  .tool-btn { width: 36px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; background: #f3f4f6; border: 1px solid #d0d7de; }
+  .tool-btn img { width: 20px; height: 20px; object-fit: contain; }
+  .t-btn { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 8px; font-size: 12px; color: #656d76; background: #f3f4f6; border: 1px solid #d0d7de; }
+  .tab { padding: 8px 14px; font-size: 12px; color: #8c959f; border-radius: 6px 6px 0 0; border: 1px solid transparent; }
+  .tab.active { color: #1f2328; background: #fff; border-color: #d0d7de #d0d7de #fff; }
+  .nav-item { padding: 6px 16px; border-radius: 8px; font-size: 12px; color: #656d76; width: 180px; }
+  .nav-item.active { background: #ddf4ff; color: #0550ae; }
+  .file-item { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px; border-radius: 8px; width: 80px; }
+  .file-item.sel { background: #ddf4ff; }
+  .file-icon { width: 36px; height: 30px; background: #9ba6b2; border-radius: 4px 4px 0 0; position: relative; }
+  .file-icon.folder { background: #6e7f94; }
+  .file-icon.folder::after { content: ''; position: absolute; top: -6px; left: 0; width: 14px; height: 6px; background: #5a6d80; border-radius: 3px 3px 0 0; }
+  .file-icon.file::after { content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent #fff transparent transparent; }
+  .file-name { font-size: 11px; color: #656d76; }
+  .history-item { padding: 11px 12px; border: 1px solid #d0d7de; border-radius: 8px; background: #f3f4f6; width: 220px; }
+  .history-title { font-size: 12px; font-weight: 600; color: #1f2328; margin-bottom: 4px; }
+  .history-meta { font-size: 10px; color: #8c959f; }
+  .session-card { border: 1px solid #d0d7de; border-radius: 8px; padding: 14px; font-size: 12px; color: #656d76; background: #f3f4f6; width: 220px; }
+  .session-row { display: flex; justify-content: space-between; margin: 5px 0; }
+  .cp-item { padding: 9px 18px; display: flex; justify-content: space-between; width: 280px; color: #656d76; font-size: 12px; background: #fff; border-radius: 4px; }
+  .cp-item.active { background: #ddf4ff; color: #0550ae; }
+  .modal { background: #fff; border: 1px solid #b7c0c7; border-radius: 12px; padding: 20px; width: 360px; box-shadow: 0 20px 60px rgba(31,35,40,0.15); }
+  .modal h4 { margin-bottom: 12px; }
+  .modal-row { display: flex; justify-content: space-between; padding: 7px 0; border-bottom: 1px solid #e5e7eb; font-size: 12px; color: #656d76; }
+  .toast { background: #fff; border: 1px solid #b7c0c7; border-left: 3px solid #0969da; border-radius: 8px; padding: 12px 16px; color: #656d76; font-size: 12px; }
+
+  /* Annotation frame */
+  .ann-frame { position: relative; width: 720px; height: 430px; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 12px; overflow: hidden; margin-top: 16px; }
+  .ann-topbar { height: 40px; background: #fff; border-bottom: 1px solid #d0d7de; display: flex; align-items: center; padding: 0 12px; }
+  .ann-left { position: absolute; left: 0; top: 40px; bottom: 0; width: 120px; background: #fff; border-right: 1px solid #d0d7de; }
+  .ann-center { position: absolute; left: 120px; top: 40px; right: 150px; bottom: 0; }
+  .ann-center-top { height: 40%; border-bottom: 1px solid #d0d7de; }
+  .ann-center-bottom { height: 60%; background: #f3f4f6; }
+  .ann-right { position: absolute; right: 0; top: 40px; bottom: 0; width: 150px; background: #fff; border-left: 1px solid #d0d7de; }
+  .ann-line { position: absolute; background: #0969da; }
+  .ann-line.h { height: 1px; }
+  .ann-line.v { width: 1px; }
+  .ann-label { position: absolute; background: #0969da; color: #fff; font-size: 10px; padding: 2px 5px; border-radius: 3px; font-family: "JetBrains Mono", monospace; }
+  .ann-note { position: absolute; color: #0969da; font-size: 10px; font-family: "JetBrains Mono", monospace; }
+</style>
+</head>
+<body>
+  <h1>金刚琢 · 设计系统</h1>
+  <div class="subtitle">Token 表 + 组件库 + 关键标注 · 供前端实现参考</div>
+
+  <!-- 1. 色彩 Token -->
+  <div class="section">
+    <h2>1. 色彩 Token</h2>
+    <p style="color:var(--text-2); font-size:12px; margin-bottom:12px;">所有颜色以 CSS 变量组织,新增主题只需替换取值,组件代码不变。</p>
+    <h3>深色主题(dark)</h3>
+    <div class="token-grid">
+      <div class="token-card"><div class="swatch" style="background:#0e1216"></div><div class="token-info"><div class="token-name">--bg</div><div class="token-value">#0e1216</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#171b20"></div><div class="token-info"><div class="token-name">--surface</div><div class="token-value">#171b20</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#1e2329"></div><div class="token-info"><div class="token-name">--surface-2</div><div class="token-value">#1e2329</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#252a31"></div><div class="token-info"><div class="token-name">--surface-3</div><div class="token-value">#252a31</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#2f353d"></div><div class="token-info"><div class="token-name">--border</div><div class="token-value">#2f353d</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#3c434d"></div><div class="token-info"><div class="token-name">--border-strong</div><div class="token-value">#3c434d</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#e6edf3"></div><div class="token-info"><div class="token-name">--text</div><div class="token-value">#e6edf3</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#9fb0c3"></div><div class="token-info"><div class="token-name">--text-2</div><div class="token-value">#9fb0c3</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#6b7a8a"></div><div class="token-info"><div class="token-name">--text-3</div><div class="token-value">#6b7a8a</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#4dabf7"></div><div class="token-info"><div class="token-name">--accent</div><div class="token-value">#4dabf7</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#74c0fc"></div><div class="token-info"><div class="token-name">--accent-text</div><div class="token-value">#74c0fc</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#51cf66"></div><div class="token-info"><div class="token-name">--success</div><div class="token-value">#51cf66</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#ffd43b"></div><div class="token-info"><div class="token-name">--warning</div><div class="token-value">#ffd43b</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#ff6b6b"></div><div class="token-info"><div class="token-name">--error</div><div class="token-value">#ff6b6b</div></div></div>
+    </div>
+
+    <h3>浅色主题(light)</h3>
+    <div class="token-grid">
+      <div class="token-card"><div class="swatch" style="background:#f6f8fa"></div><div class="token-info"><div class="token-name">--bg</div><div class="token-value">#f6f8fa</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#ffffff; border-bottom:1px solid #eee"></div><div class="token-info"><div class="token-name">--surface</div><div class="token-value">#ffffff</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#f3f4f6"></div><div class="token-info"><div class="token-name">--surface-2</div><div class="token-value">#f3f4f6</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#e5e7eb"></div><div class="token-info"><div class="token-name">--surface-3</div><div class="token-value">#e5e7eb</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#d0d7de"></div><div class="token-info"><div class="token-name">--border</div><div class="token-value">#d0d7de</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#b7c0c7"></div><div class="token-info"><div class="token-name">--border-strong</div><div class="token-value">#b7c0c7</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#1f2328"></div><div class="token-info"><div class="token-name">--text</div><div class="token-value">#1f2328</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#656d76"></div><div class="token-info"><div class="token-name">--text-2</div><div class="token-value">#656d76</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#8c959f"></div><div class="token-info"><div class="token-name">--text-3</div><div class="token-value">#8c959f</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#0969da"></div><div class="token-info"><div class="token-name">--accent</div><div class="token-value">#0969da</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#0550ae"></div><div class="token-info"><div class="token-name">--accent-text</div><div class="token-value">#0550ae</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#1a7f37"></div><div class="token-info"><div class="token-name">--success</div><div class="token-value">#1a7f37</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#9a6700"></div><div class="token-info"><div class="token-name">--warning</div><div class="token-value">#9a6700</div></div></div>
+      <div class="token-card"><div class="swatch" style="background:#cf222e"></div><div class="token-info"><div class="token-name">--error</div><div class="token-value">#cf222e</div></div></div>
+    </div>
+  </div>
+
+  <!-- 2. 字体与排版 -->
+  <div class="section">
+    <h2>2. 字体与排版</h2>
+    <table>
+      <tr><th>Token</th><th>取值</th><th class="desc">用途</th></tr>
+      <tr><td>--font-ui</td><td>Inter, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif</td><td class="desc">界面文字、按钮、标签</td></tr>
+      <tr><td>--font-mono</td><td>"JetBrains Mono", Consolas, monospace</td><td class="desc">终端、路径、代码、快捷键</td></tr>
+      <tr><td>--text-brand</td><td>16px / 700</td><td class="desc">顶栏/侧栏产品名</td></tr>
+      <tr><td>--text-body</td><td>13px / normal</td><td class="desc">正文、终端内容</td></tr>
+      <tr><td>--text-secondary</td><td>12px / normal</td><td class="desc">导航、标签、按钮、历史</td></tr>
+      <tr><td>--text-caption</td><td>10px / 700 uppercase</td><td class="desc">分组标题、状态标签</td></tr>
+    </table>
+  </div>
+
+  <!-- 3. 间距 / 圆角 / 阴影 -->
+  <div class="section">
+    <h2>3. 间距 / 圆角 / 阴影</h2>
+    <table>
+      <tr><th>类型</th><th>Token / 取值</th><th class="desc">说明</th></tr>
+      <tr><td>基础栅格</td><td>4px</td><td class="desc">所有间距以此倍数递增:4/8/12/16/20/24/32</td></tr>
+      <tr><td>顶栏高度</td><td>52px</td><td class="desc">固定高度,内容垂直居中</td></tr>
+      <tr><td>左栏宽度</td><td>250px</td><td class="desc">可拖拽调整,默认 250px</td></tr>
+      <tr><td>右栏宽度</td><td>300px</td><td class="desc">可拖拽调整,默认 300px</td></tr>
+      <tr><td>中区比例</td><td>文件管理器 40% / 终端 60%</td><td class="desc">默认布局,可拖拽调整</td></tr>
+      <tr><td>默认圆角</td><td>8px (--radius)</td><td class="desc">按钮、卡片、标签、弹窗</td></tr>
+      <tr><td>大圆角</td><td>12px / 16px</td><td class="desc">窗口外框、大 logo、模态框</td></tr>
+      <tr><td>窗口阴影</td><td>0 4px 20px rgba(0,0,0,0.35)</td><td class="desc">深色主题窗口</td></tr>
+      <tr><td>弹窗阴影</td><td>0 20px 60px rgba(0,0,0,0.5)</td><td class="desc">命令面板、确认弹窗</td></tr>
+    </table>
+  </div>
+
+  <!-- 4. 组件库 -->
+  <div class="section">
+    <h2>4. 组件库(浅色主题示例)</h2>
+    <div class="component-row">
+      <div class="component-label">主按钮</div>
+      <div class="btn primary">启动会话</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">次按钮</div>
+      <div class="btn">编辑配置</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">工具按钮</div>
+      <div class="tool-btn"><img src="../claude.png" alt="CC"></div>
+      <div class="tool-btn"><img src="../codex.png" alt="Cx"></div>
+      <div class="tool-btn">⚙</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">下拉按钮</div>
+      <div class="t-btn">▾ 我的workspace</div>
+      <div class="t-btn">命令面板 Ctrl+Shift+P</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">标签页</div>
+      <div class="tab active">文件管理器</div>
+      <div class="tab">编辑器</div>
+      <div class="tab">预览</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">导航项</div>
+      <div class="nav-item active">● 我的workspace</div>
+      <div class="nav-item">○ 项目A</div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">文件项</div>
+      <div class="file-item"><div class="file-icon folder"></div><div class="file-name">components</div></div>
+      <div class="file-item sel"><div class="file-icon file"></div><div class="file-name">app.tsx</div></div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">历史项</div>
+      <div class="history-item">
+        <div class="history-title">重构鉴权模块</div>
+        <div class="history-meta">运行中 · Claude Code · 今天 14:20</div>
+      </div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">当前会话卡</div>
+      <div class="session-card">
+        <div class="session-row"><span>工具</span><span>Claude Code</span></div>
+        <div class="session-row"><span>工作目录</span><span>E:\workspace</span></div>
+        <div class="session-row"><span>状态</span><span style="color:#1a7f37; font-weight:700;">● 运行中</span></div>
+      </div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">命令面板项</div>
+      <div class="cp-item active"><span>新建终端</span><span>Ctrl+Shift+T</span></div>
+      <div class="cp-item"><span>启动 Claude Code</span><span>Ctrl+Shift+1</span></div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">确认弹窗</div>
+      <div class="modal">
+        <h4>启动 Claude Code 会话</h4>
+        <div class="modal-row"><span>工具</span><span>Claude Code</span></div>
+        <div class="modal-row"><span>API Key</span><span>••••••••••</span></div>
+        <div style="display:flex; justify-content:flex-end; gap:8px; margin-top:12px;">
+          <div class="btn">编辑配置</div>
+          <div class="btn primary">启动会话</div>
+        </div>
+      </div>
+    </div>
+    <div class="component-row">
+      <div class="component-label">Toast</div>
+      <div class="toast">Claude Code 已启动 · 会话记录已创建</div>
+    </div>
+  </div>
+
+  <!-- 5. 主界面标注 -->
+  <div class="section">
+    <h2>5. 主界面关键标注</h2>
+    <div class="ann-frame">
+      <div class="ann-topbar"><span style="font-size:11px; color:#666;">顶栏 52px</span></div>
+      <div class="ann-left"></div>
+      <div class="ann-center">
+        <div class="ann-center-top"></div>
+        <div class="ann-center-bottom"></div>
+      </div>
+      <div class="ann-right"></div>
+
+      <!-- left width -->
+      <div class="ann-line h" style="left:0; top:110px; width:120px;"></div>
+      <div class="ann-line v" style="left:120px; top:40px; height:80px;"></div>
+      <div class="ann-label" style="left:38px; top:92px;">250px</div>
+
+      <!-- right width -->
+      <div class="ann-line h" style="right:0; top:110px; width:150px;"></div>
+      <div class="ann-line v" style="right:150px; top:40px; height:80px;"></div>
+      <div class="ann-label" style="right:48px; top:92px;">300px</div>
+
+      <!-- fm height -->
+      <div class="ann-line v" style="left:250px; top:40px; height:156px;"></div>
+      <div class="ann-line h" style="left:250px; top:196px; width:30px;"></div>
+      <div class="ann-label" style="left:220px; top:110px;">40%</div>
+
+      <!-- terminal height -->
+      <div class="ann-line v" style="right:180px; top:196px; height:234px;"></div>
+      <div class="ann-line h" style="right:150px; top:196px; width:30px;"></div>
+      <div class="ann-label" style="right:140px; top:270px;">60%</div>
+
+      <!-- notes -->
+      <div class="ann-note" style="left:10px; top:45px;">品牌区: logo 72px + 名称</div>
+      <div class="ann-note" style="left:260px; top:45px;">文件管理器(默认)</div>
+      <div class="ann-note" style="left:260px; top:205px;">终端 · AI 会话发生地</div>
+      <div class="ann-note" style="right:10px; top:45px;">会话信息 + 历史</div>
+    </div>
+
+    <h3 style="margin-top:24px;">关键尺寸清单</h3>
+    <table>
+      <tr><th>元素</th><th>尺寸</th><th class="desc">备注</th></tr>
+      <tr><td>窗口/屏幕</td><td>1440×860(最小参考)</td><td class="desc">实际可缩放,最小 1024×600</td></tr>
+      <tr><td>顶栏高度</td><td>52px</td><td class="desc">固定,工具按钮 36×32</td></tr>
+      <tr><td>左栏宽度</td><td>250px</td><td class="desc">可拖拽 200-350px</td></tr>
+      <tr><td>右栏宽度</td><td>300px</td><td class="desc">可拖拽 250-400px</td></tr>
+      <tr><td>品牌区</td><td>左栏顶部,logo 72px,名称 16px</td><td class="desc">与导航之间 14px 间距</td></tr>
+      <tr><td>文件管理器区</td><td>中上 40%</td><td class="desc">默认;可切换编辑器/预览/diff</td></tr>
+      <tr><td>终端区</td><td>中下 60%</td><td class="desc">主角区域,多标签页</td></tr>
+      <tr><td>文件图标网格</td><td>96×82 单元,38×30 图标</td><td class="desc">图标+名称,8px gap</td></tr>
+      <tr><td>命令面板</td><td>640px 宽,居中</td><td class="desc">距顶 80px</td></tr>
+      <tr><td>确认弹窗</td><td>520px 宽</td><td class="desc">居中,阴影层级最高</td></tr>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>6. 主题切换说明</h2>
+    <p style="color:var(--text-2); font-size:12px;">主题 = 一套 token 取值集合。实现时维护两套 CSS 变量(如 <code>data-theme="dark"</code> / <code>"light"</code>),组件只引用变量名,不直接写死色值。新增主题只需新增一套 token 取值,无需改动组件代码(UI-008)。</p>
+  </div>
+
+</body>
+</html>

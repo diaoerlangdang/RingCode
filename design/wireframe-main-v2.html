@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 主界面线框 v2(文件管理器大视图)</title>
+<!--
+  Junior pass v2 · 布局重心调整(用户确认「激进方案」):
+
+  1. 中区上半 = 文件管理器大视图(默认),编辑器/预览/diff 退为可切标签。
+     文件管理器是核心组件,升级为主区域,占中区上半全宽(图标/列表/详情视图)。
+  2. 左栏 = 导航窗格(类 Windows 资源管理器导航):
+     - 「工作区」分组:工作区记录,点击 -> 中区显示该工作区根目录
+     - 「此电脑」分组:各盘符(C/D/E),可展开成文件夹树,点击 -> 中区显示该盘/文件夹内容
+     - 「收藏」「最近」底部
+  3. 中区下半 = 终端(主角,60%),不变。
+  4. 比例:上半(文件管理器)40% : 下半(终端)60%。「大视图」指占全宽,不压终端。
+     命名布局可切重心(专注文件管理 / 专注终端 / 编码)。
+  5. 灰阶线框,图标用灰方块占位,非最终视觉。
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #e6e6e6; color: #333; padding: 24px; }
+  .doc-title { margin-bottom: 14px; color: #444; font-size: 14px; }
+  .doc-title small { color: #999; font-size: 12px; margin-left: 8px; }
+  .frame { width: 1440px; height: 860px; background: #f5f5f5; border: 1px solid #c8c8c8; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2px 14px rgba(0,0,0,0.08); }
+
+  /* 顶栏 */
+  .topbar { height: 48px; flex-shrink: 0; background: #ececec; border-bottom: 1px solid #d0d0d0; display: flex; align-items: center; padding: 0 14px; gap: 10px; }
+  .slot { border: 1px dashed #aaa; border-radius: 4px; padding: 6px 12px; font-size: 12px; color: #666; background: #fafafa; display: flex; align-items: center; gap: 6px; }
+  .icon-box { width: 14px; height: 14px; border: 1px dashed #aaa; border-radius: 2px; flex-shrink: 0; }
+  .spacer { flex: 1; }
+  .tool-btn { border: 1px dashed #aaa; border-radius: 4px; width: 34px; height: 30px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555; background: #fafafa; font-weight: 600; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 16px; flex-shrink: 0; }
+  .brand img { width: 36px; height: 36px; border-radius: 6px; object-fit: cover; }
+  .brand span { font-size: 15px; font-weight: 600; color: #333; letter-spacing: 1px; }
+
+  /* 主体 */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 左导航 */
+  .left { width: 240px; flex-shrink: 0; border-right: 1px solid #d8d8d8; display: flex; flex-direction: column; background: #f4f4f4; overflow: hidden; }
+  .nav-scroll { flex: 1; overflow-y: auto; }
+  .nav-group { padding: 10px 0 8px; border-bottom: 1px solid #e8e8e8; }
+  .nav-group .group-title { font-size: 10px; color: #999; padding: 0 14px 6px; letter-spacing: 1.5px; }
+  .nav-item { padding: 5px 14px; font-size: 12px; color: #666; display: flex; align-items: center; gap: 6px; }
+  .nav-item.indent { padding-left: 28px; }
+  .nav-item.indent2 { padding-left: 42px; }
+  .nav-item.active { background: #e0e0e0; color: #222; box-shadow: inset 3px 0 0 #888; }
+  .nav-item .chev { width: 10px; color: #aaa; font-size: 10px; flex-shrink: 0; }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; border: 1px solid #999; flex-shrink: 0; }
+  .nav-item.active .dot { background: #888; border-color: #888; }
+
+  /* 中区 */
+  .center { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .center-fm { height: 40%; border-bottom: 1px solid #d8d8d8; display: flex; flex-direction: column; position: relative; }
+  .center-terminal { height: 60%; display: flex; flex-direction: column; background: #f9f9f9; position: relative; }
+
+  .pane-tabs { height: 36px; display: flex; align-items: center; background: #f0f0f0; border-bottom: 1px solid #e0e0e0; padding: 0 8px; gap: 2px; flex-shrink: 0; }
+  .pane-tabs .tab { padding: 6px 12px; font-size: 11px; color: #999; border: 1px solid transparent; border-radius: 3px 3px 0 0; }
+  .pane-tabs .tab.active { color: #333; background: #f8f8f8; border-color: #e0e0e0; border-bottom-color: #f8f8f8; }
+  .pane-tabs .add { color: #bbb; font-size: 14px; padding: 6px 10px; }
+
+  /* 文件管理器工具栏 */
+  .fm-toolbar { height: 38px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid #e8e8e8; background: #fafafa; }
+  .fm-btn { width: 26px; height: 26px; border: 1px solid #ddd; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 12px; color: #777; background: #fff; }
+  .breadcrumb { font-size: 12px; color: #666; font-family: "JetBrains Mono", Consolas, monospace; flex: 1; }
+  .breadcrumb .crumb { color: #888; }
+  .breadcrumb .sep { color: #ccc; margin: 0 5px; }
+  .breadcrumb .here { color: #333; font-weight: 600; }
+  .view-switch { display: flex; border: 1px solid #ddd; border-radius: 3px; overflow: hidden; }
+  .view-switch .v { padding: 4px 10px; font-size: 11px; color: #888; background: #fff; border-right: 1px solid #ddd; }
+  .view-switch .v:last-child { border-right: none; }
+  .view-switch .v.active { background: #e2e2e2; color: #444; }
+
+  /* 图标网格 */
+  .fm-grid { flex: 1; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, 96px); grid-auto-rows: 80px; gap: 4px; align-content: start; overflow: auto; }
+  .fm-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 6px 4px; border-radius: 4px; }
+  .fm-item.sel { background: #e0e0e0; }
+  .fm-icon { width: 38px; height: 38px; border-radius: 4px; }
+  .fm-icon.folder { background: #d8d8d8; border: 1px solid #b8b8b8; }
+  .fm-icon.file { background: #ececec; border: 1px solid #d4d4d4; }
+  .fm-name { font-size: 11px; color: #666; text-align: center; max-width: 88px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* 终端 */
+  .pane-body { flex: 1; position: relative; overflow: hidden; }
+  .terminal-mock { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 76%; color: #777; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.9; border: 1px dashed #ccc; border-radius: 4px; padding: 14px 18px; background: #fff; }
+  .terminal-mock .prompt { color: #aaa; }
+  .terminal-mock .accent { color: #555; }
+  .terminal-mock .cursor { display: inline-block; width: 7px; height: 14px; background: #888; vertical-align: middle; }
+
+  /* 右栏 */
+  .right { width: 300px; flex-shrink: 0; border-left: 1px solid #d8d8d8; display: flex; flex-direction: column; }
+  .right-section { border-bottom: 1px solid #e8e8e8; padding: 12px; }
+  .right-section .title { font-size: 10px; color: #999; margin-bottom: 8px; letter-spacing: 1.5px; }
+  .session-card { border: 1px dashed #bbb; border-radius: 4px; padding: 10px; font-size: 11.5px; color: #666; }
+  .session-card .row { display: flex; justify-content: space-between; margin: 4px 0; }
+  .session-card .k { color: #aaa; }
+  .session-card .running { color: #5a8; }
+  .history-list { flex: 1; overflow: hidden; padding: 8px 12px; }
+  .history-item { padding: 8px 10px; border: 1px solid #e8e8e8; border-radius: 4px; margin-bottom: 6px; }
+  .history-item .h-title { color: #555; font-size: 12px; margin-bottom: 3px; }
+  .history-item .h-meta { color: #aaa; font-size: 10px; display: flex; gap: 8px; }
+  .hdot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .hdot.run { background: #6a9; } .hdot.end { background: #ccc; } .hdot.broke { background: #c66; }
+
+  /* 标注 */
+  .annotation { position: absolute; font-size: 10px; color: #b54a3a; background: #fff; padding: 2px 7px; border: 1px solid #f0c8c0; border-radius: 3px; white-space: nowrap; }
+  .ann-good { color: #3a7a4a; border-color: #c0e0c8; }
+  .ratio-mark { position: absolute; right: 8px; top: 8px; font-size: 10px; color: #bbb; font-family: "JetBrains Mono", Consolas, monospace; }
+</style>
+</head>
+<body>
+  <div class="doc-title">金刚琢 · 主界面线框 v2 <small>文件管理器大视图 + 左侧导航(工作区 / 盘符树)· 灰阶示意,非最终视觉</small></div>
+
+  <div class="frame">
+    <!-- 顶栏 -->
+    <div class="topbar">
+      <div class="brand">
+        <img src="../logo.png" alt="金刚琢 logo">
+        <span>金刚琢</span>
+      </div>
+      <div class="slot"><span class="icon-box"></span>▾ 我的workspace</div>
+      <div class="slot"><span class="icon-box"></span>搜索内容</div>
+      <div class="slot"><span class="icon-box"></span>命令面板 <span style="color:#bbb">Ctrl+Shift+P</span></div>
+      <div class="spacer"></div>
+      <div class="tool-btn" title="启动 Claude Code">CC</div>
+      <div class="tool-btn" title="启动 Codex">Cx</div>
+      <div class="tool-btn" title="设置">⚙</div>
+    </div>
+
+    <div class="body">
+      <!-- 左导航 -->
+      <div class="left">
+        <div class="nav-scroll">
+          <div class="nav-group">
+            <div class="group-title">工作区</div>
+            <div class="nav-item active"><span class="dot"></span>我的workspace</div>
+            <div class="nav-item"><span class="dot"></span>项目A</div>
+            <div class="nav-item"><span class="dot"></span>网站重构</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">此电脑</div>
+            <div class="nav-item"><span class="chev">▾</span>C:</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Users</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Program Files</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Windows</div>
+            <div class="nav-item"><span class="chev">▸</span>D:</div>
+            <div class="nav-item"><span class="chev">▸</span>E:</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">收藏</div>
+            <div class="nav-item">★ docs</div>
+            <div class="nav-item">★ 组件库</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">最近</div>
+            <div class="nav-item">requirements.md</div>
+            <div class="nav-item">design-brief.md</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中区 -->
+      <div class="center">
+        <!-- 中区上半:文件管理器大视图(默认) -->
+        <div class="center-fm">
+          <div class="pane-tabs">
+            <div class="tab active">文件管理器</div>
+            <div class="tab">编辑器</div>
+            <div class="tab">预览</div>
+            <div class="tab">diff</div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="fm-toolbar">
+            <div class="fm-btn">←</div>
+            <div class="fm-btn">→</div>
+            <div class="fm-btn">↑</div>
+            <div class="fm-btn">⟳</div>
+            <div class="breadcrumb"><span class="crumb">E:</span><span class="sep">›</span><span class="crumb">workspace</span><span class="sep">›</span><span class="here">src</span></div>
+            <div class="fm-btn">＋</div>
+            <div class="view-switch">
+              <div class="v active">图标</div>
+              <div class="v">列表</div>
+              <div class="v">详情</div>
+            </div>
+          </div>
+          <div class="fm-grid">
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">components</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">utils</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">hooks</div></div>
+            <div class="fm-item sel"><div class="fm-icon file"></div><div class="fm-name">app.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">main.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">index.css</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">vite.config.ts</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">types.d.ts</div></div>
+          </div>
+          <div class="ratio-mark">40%</div>
+          <div class="annotation ann-good" style="bottom:8px; right:12px;">文件管理器大视图(默认)· 点左栏切换目录</div>
+        </div>
+
+        <!-- 中区下半:终端(主角) -->
+        <div class="center-terminal">
+          <div class="pane-tabs">
+            <div class="tab active">● claude-code  ①</div>
+            <div class="tab">claude-code ②</div>
+            <div class="tab">powershell</div>
+            <div style="flex:1"></div>
+            <div class="add">+</div>
+          </div>
+          <div class="pane-body">
+            <div class="ratio-mark">60%</div>
+            <div class="terminal-mock">
+              <div><span class="prompt">PS E:\workspace&gt;</span> claude</div>
+              <div class="accent">╭─ Claude Code v1.x ─────────────────────╮</div>
+              <div>  欢迎回来。这是 AI 会话发生的地方。</div>
+              <div>  /help 查看命令　·　/resume 继续历史会话</div>
+              <div class="accent">╰────────────────────────────────────────╯</div>
+              <div><span class="prompt">&gt;</span> <span class="cursor"></span></div>
+            </div>
+            <div class="annotation ann-good" style="bottom:12px; right:12px;">★ 主角 · AI 会话发生地</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右栏 -->
+      <div class="right">
+        <div class="right-section">
+          <div class="title">当前会话</div>
+          <div class="session-card">
+            <div class="row"><span class="k">工具</span><span>Claude Code</span></div>
+            <div class="row"><span class="k">工作目录</span><span>E:\workspace</span></div>
+            <div class="row"><span class="k">配置方案</span><span>默认 · CC</span></div>
+            <div class="row"><span class="k">状态</span><span class="running">● 运行中</span></div>
+          </div>
+        </div>
+        <div class="right-section" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
+          <div class="title">历史会话</div>
+          <div class="history-list">
+            <div class="history-item">
+              <div class="h-title">重构鉴权模块</div>
+              <div class="h-meta"><span><span class="hdot run"></span>运行中</span><span>Claude Code</span><span>今天 14:20</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">修复终端中文乱码</div>
+              <div class="h-meta"><span><span class="hdot end"></span>已结束</span><span>Codex</span><span>昨天</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">写 README 文档</div>
+              <div class="h-meta"><span><span class="hdot broke"></span>已中断</span><span>Claude Code</span><span>7/10</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">数据库迁移脚本</div>
+              <div class="h-meta"><span><span class="hdot end"></span>已结束</span><span>Claude Code</span><span>7/9</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

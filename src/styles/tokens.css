@@ -1,0 +1,105 @@
+/*
+ * 金刚琢 设计 Token
+ * 来源：design/design-system.html + design/hifi-main-dark.html + hifi-main-light.html
+ * 规则：组件只引用变量名，不写死色值；新增主题只需新增一套取值（UI-008）。
+ * 深色为主推方向 B（驾驶舱），浅色为其变体。
+ */
+
+:root,
+:root[data-theme='dark'] {
+  --bg: #0e1216;
+  --bg-app: #080a0c;
+  --surface: #171b20;
+  --surface-2: #1e2329;
+  --surface-3: #252a31;
+  --surface-hover: #252b33;
+  --border: #2f353d;
+  --border-strong: #3c434d;
+  --text: #e6edf3;
+  --text-2: #9fb0c3;
+  --text-3: #6b7a8a;
+  --accent: #4dabf7;
+  --accent-soft: rgba(77, 171, 247, 0.12);
+  --accent-text: #74c0fc;
+  --folder: #6c849c;
+  --folder-tab: #5a728a;
+  --file: #94a3b8;
+  --success: #51cf66;
+  --warning: #ffd43b;
+  --error: #ff6b6b;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --overlay: rgba(0, 0, 0, 0.55);
+
+  /* 终端 */
+  --term-bg: #0b0e12;
+  --term-fg: #e6edf3;
+  --term-cursor: #4dabf7;
+}
+
+:root[data-theme='light'] {
+  --bg: #f6f8fa;
+  --bg-app: #ffffff;
+  --surface: #ffffff;
+  --surface-2: #f3f4f6;
+  --surface-3: #e5e7eb;
+  --surface-hover: #eef0f2;
+  --border: #d0d7de;
+  --border-strong: #b7c0c7;
+  --text: #1f2328;
+  --text-2: #656d76;
+  --text-3: #8c959f;
+  --accent: #0969da;
+  --accent-soft: #ddf4ff;
+  --accent-text: #0550ae;
+  --folder: #6e7f94;
+  --folder-tab: #5a6d80;
+  --file: #9ba6b2;
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --error: #cf222e;
+
+  --radius: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --shadow: 0 4px 20px rgba(31, 35, 40, 0.08);
+  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.18);
+  --overlay: rgba(31, 35, 40, 0.35);
+
+  --term-bg: #ffffff;
+  --term-fg: #1f2328;
+  --term-cursor: #0969da;
+}
+
+/* 字体与排版（design-system §2） */
+:root {
+  --font-ui: Inter, -apple-system, 'Segoe UI', 'Microsoft YaHei', sans-serif;
+  --font-mono: 'JetBrains Mono', Consolas, 'Cascadia Code', monospace;
+
+  --text-brand: 700 16px/1.2 var(--font-ui);
+  --text-body: 13px/1.6 var(--font-ui);
+  --text-secondary: 12px/1.5 var(--font-ui);
+  --text-caption: 700 10px/1.4 var(--font-ui);
+
+  /* 间距栅格 4px 基（design-system §3） */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* 关键尺寸（design-system §5 标注） */
+  --topbar-h: 52px;
+  --left-w: 250px;
+  --right-w: 300px;
+  --left-w-min: 200px;
+  --left-w-max: 350px;
+  --right-w-min: 250px;
+  --right-w-max: 400px;
+}

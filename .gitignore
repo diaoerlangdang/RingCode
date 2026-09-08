@@ -1,0 +1,15 @@
+node_modules/
+dist/
+electron-dist/
+release/
+*.log
+.DS_Store
+
+# 本地调试与临时用户数据（防泄露）
+.dev-user-data/
+.demo-*/
+*.local
+.vscode/
+.idea/
+coverage/
+

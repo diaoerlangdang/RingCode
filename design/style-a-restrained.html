@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 气质方向 A · 克制工具</title>
+<style>
+  :root {
+    --bg: #f3f4f6;
+    --surface: #ffffff;
+    --surface-2: #f9fafb;
+    --surface-hover: #f0f1f3;
+    --border: #e5e7eb;
+    --border-strong: #d1d5db;
+    --text: #1f2937;
+    --text-2: #6b7280;
+    --text-3: #9ca3af;
+    --accent: #2563eb;
+    --accent-soft: #eff6ff;
+    --accent-text: #1d4ed8;
+    --folder: #93a4b8;
+    --file: #cbd5e1;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --error: #ef4444;
+    --radius: 6px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); padding: 24px; font-size: 12px; }
+  .doc-title { margin-bottom: 14px; color: var(--text-2); font-size: 13px; }
+  .frame { width: 1440px; height: 860px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+
+  /* 顶栏 */
+  .topbar { height: 48px; flex-shrink: 0; background: var(--surface-2); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 14px; gap: 10px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 18px; }
+  .brand img { width: 34px; height: 34px; border-radius: 7px; object-fit: cover; }
+  .brand span { font-size: 15px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+  .t-btn { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: var(--radius); font-size: 12px; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); }
+  .t-btn:hover { background: var(--surface-hover); }
+  .t-icon { width: 14px; height: 14px; background: var(--text-3); border-radius: 2px; }
+  .spacer { flex: 1; }
+  .tool-btn { width: 34px; height: 30px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-2); background: var(--surface); border: 1px solid var(--border); }
+  .tool-btn.cc { color: var(--accent-text); background: var(--accent-soft); border-color: #bfdbfe; }
+  .tool-btn.cx { color: var(--text-2); }
+
+  /* 主体 */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 左导航 */
+  .left { width: 240px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .nav-scroll { flex: 1; overflow-y: auto; padding: 8px 0; }
+  .nav-group { padding: 6px 0; }
+  .nav-group .group-title { font-size: 10px; font-weight: 600; color: var(--text-3); padding: 0 14px 6px; letter-spacing: 1px; text-transform: uppercase; }
+  .nav-item { padding: 5px 14px; margin: 0 8px; border-radius: var(--radius); font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 6px; cursor: default; }
+  .nav-item:hover { background: var(--surface-hover); }
+  .nav-item.active { background: #e5e7eb; color: var(--text); }
+  .nav-item.indent { padding-left: 28px; margin-left: 8px; }
+  .nav-item .chev { width: 10px; color: var(--text-3); font-size: 10px; }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--text-3); }
+  .nav-item.active .dot { background: var(--accent); border-color: var(--accent); }
+
+  /* 中区 */
+  .center { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .center-fm { height: 40%; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
+  .center-terminal { height: 60%; display: flex; flex-direction: column; background: var(--surface-2); }
+
+  .pane-tabs { height: 36px; display: flex; align-items: center; background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 0 8px; gap: 2px; flex-shrink: 0; }
+  .pane-tabs .tab { padding: 7px 14px; font-size: 12px; color: var(--text-3); border-radius: 5px 5px 0 0; }
+  .pane-tabs .tab.active { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-bottom-color: var(--surface); }
+
+  .fm-toolbar { height: 40px; flex-shrink: 0; display: flex; align-items: center; gap: 6px; padding: 0 12px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .fm-btn { width: 26px; height: 26px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); }
+  .fm-btn:hover { background: var(--surface-hover); }
+  .breadcrumb { font-size: 12px; color: var(--text-2); font-family: "JetBrains Mono", Consolas, monospace; flex: 1; }
+  .breadcrumb span { color: var(--text-3); }
+  .breadcrumb span:last-child { color: var(--text); font-weight: 600; }
+  .view-switch { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+  .view-switch .v { padding: 4px 10px; font-size: 11px; color: var(--text-3); border-right: 1px solid var(--border); }
+  .view-switch .v:last-child { border-right: none; }
+  .view-switch .v.active { background: var(--surface); color: var(--text); }
+
+  .fm-grid { flex: 1; padding: 16px; display: grid; grid-template-columns: repeat(auto-fill, 92px); grid-auto-rows: 78px; gap: 8px; align-content: start; overflow: auto; }
+  .fm-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 8px 4px; border-radius: var(--radius); cursor: default; }
+  .fm-item:hover { background: var(--surface-hover); }
+  .fm-item.sel { background: var(--accent-soft); }
+  .fm-icon { width: 36px; height: 30px; border-radius: 3px 3px 0 0; position: relative; }
+  .fm-icon.folder { background: var(--folder); }
+  .fm-icon.folder::after { content: ''; position: absolute; top: -5px; left: 0; width: 14px; height: 5px; background: #b0c0d0; border-radius: 2px 2px 0 0; }
+  .fm-icon.file { background: var(--file); }
+  .fm-icon.file::after { content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 10px 10px 0; border-color: transparent #fff transparent transparent; }
+  .fm-name { font-size: 11px; color: var(--text-2); text-align: center; max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fm-item.sel .fm-name { color: var(--accent-text); }
+
+  /* 终端 */
+  .pane-body { flex: 1; position: relative; overflow: hidden; padding: 12px; }
+  .terminal-mock { width: 100%; height: 100%; background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; color: #4b5563; font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.8; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); }
+  .terminal-mock .prompt { color: var(--text-3); }
+  .terminal-mock .accent { color: var(--accent-text); }
+  .terminal-mock .cursor { display: inline-block; width: 7px; height: 14px; background: var(--accent); vertical-align: middle; }
+
+  /* 右栏 */
+  .right { width: 300px; flex-shrink: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .right-section { border-bottom: 1px solid var(--border); padding: 14px; }
+  .right-section .title { font-size: 10px; font-weight: 700; color: var(--text-3); margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .session-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; font-size: 12px; color: var(--text-2); background: var(--surface-2); }
+  .session-card .row { display: flex; justify-content: space-between; margin: 5px 0; }
+  .session-card .k { color: var(--text-3); }
+  .session-card .running { color: var(--success); font-weight: 600; }
+  .history-list { flex: 1; overflow: hidden; padding: 8px 14px; }
+  .history-item { padding: 9px 11px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 6px; background: var(--surface-2); }
+  .history-item .h-title { color: var(--text); font-size: 12px; margin-bottom: 4px; font-weight: 500; }
+  .history-item .h-meta { color: var(--text-3); font-size: 10px; display: flex; gap: 8px; }
+  .hdot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .hdot.run { background: var(--success); } .hdot.end { background: var(--text-3); } .hdot.broke { background: var(--error); }
+</style>
+</head>
+<body>
+  <div class="doc-title">金刚琢 · 气质方向 A · 克制工具 (Windows Terminal / Files / Linear 路线)</div>
+  <div class="frame">
+    <div class="topbar">
+      <div class="brand"><img src="../logo.png" alt="金刚琢"><span>金刚琢</span></div>
+      <div class="t-btn"><span class="t-icon" style="background:#9ca3af;"></span>▾ 我的workspace</div>
+      <div class="t-btn"><span class="t-icon" style="background:#9ca3af;"></span>搜索内容</div>
+      <div class="t-btn"><span class="t-icon" style="background:#9ca3af;"></span>命令面板 <span style="color:var(--text-3)">Ctrl+Shift+P</span></div>
+      <div class="spacer"></div>
+      <div class="tool-btn cc" title="启动 Claude Code">CC</div>
+      <div class="tool-btn cx" title="启动 Codex">Cx</div>
+      <div class="tool-btn" title="设置">⚙</div>
+    </div>
+    <div class="body">
+      <div class="left">
+        <div class="nav-scroll">
+          <div class="nav-group">
+            <div class="group-title">工作区</div>
+            <div class="nav-item active"><span class="dot"></span>我的workspace</div>
+            <div class="nav-item"><span class="dot"></span>项目A</div>
+            <div class="nav-item"><span class="dot"></span>网站重构</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">此电脑</div>
+            <div class="nav-item"><span class="chev">▾</span>C:</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Users</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Program Files</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Windows</div>
+            <div class="nav-item"><span class="chev">▸</span>D:</div>
+            <div class="nav-item"><span class="chev">▸</span>E:</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">收藏</div>
+            <div class="nav-item">★ docs</div>
+            <div class="nav-item">★ 组件库</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">最近</div>
+            <div class="nav-item">requirements.md</div>
+            <div class="nav-item">design-brief.md</div>
+          </div>
+        </div>
+      </div>
+      <div class="center">
+        <div class="center-fm">
+          <div class="pane-tabs">
+            <div class="tab active">文件管理器</div>
+            <div class="tab">编辑器</div>
+            <div class="tab">预览</div>
+            <div class="tab">diff</div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="fm-toolbar">
+            <div class="fm-btn">←</div>
+            <div class="fm-btn">→</div>
+            <div class="fm-btn">↑</div>
+            <div class="fm-btn">⟳</div>
+            <div class="breadcrumb">E: <span>›</span> workspace <span>›</span> src</div>
+            <div class="fm-btn">＋</div>
+            <div class="view-switch">
+              <div class="v active">图标</div>
+              <div class="v">列表</div>
+              <div class="v">详情</div>
+            </div>
+          </div>
+          <div class="fm-grid">
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">components</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">utils</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">hooks</div></div>
+            <div class="fm-item sel"><div class="fm-icon file"></div><div class="fm-name">app.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">main.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">index.css</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">vite.config.ts</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">types.d.ts</div></div>
+          </div>
+        </div>
+        <div class="center-terminal">
+          <div class="pane-tabs">
+            <div class="tab active">● claude-code  ①</div>
+            <div class="tab">claude-code ②</div>
+            <div class="tab">powershell</div>
+            <div style="flex:1"></div>
+            <div class="tab" style="color:var(--text-3)">+</div>
+          </div>
+          <div class="pane-body">
+            <div class="terminal-mock">
+              <div><span class="prompt">PS E:\workspace&gt;</span> claude</div>
+              <div class="accent">╭─ Claude Code v1.x ─────────────────────╮</div>
+              <div>  欢迎回来。这是 AI 会话发生的地方。</div>
+              <div>  /help 查看命令 · /resume 继续历史会话</div>
+              <div class="accent">╰────────────────────────────────────────╯</div>
+              <div><span class="prompt">&gt;</span> <span class="cursor"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="right-section">
+          <div class="title">当前会话</div>
+          <div class="session-card">
+            <div class="row"><span class="k">工具</span><span>Claude Code</span></div>
+            <div class="row"><span class="k">工作目录</span><span>E:\workspace</span></div>
+            <div class="row"><span class="k">配置方案</span><span>默认 · CC</span></div>
+            <div class="row"><span class="k">状态</span><span class="running">● 运行中</span></div>
+          </div>
+        </div>
+        <div class="right-section" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
+          <div class="title">历史会话</div>
+          <div class="history-list">
+            <div class="history-item">
+              <div class="h-title">重构鉴权模块</div>
+              <div class="h-meta"><span><span class="hdot run"></span>运行中</span><span>Claude Code</span><span>今天 14:20</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">修复终端中文乱码</div>
+              <div class="h-meta"><span><span class="hdot end"></span>已结束</span><span>Codex</span><span>昨天</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">写 README 文档</div>
+              <div class="h-meta"><span><span class="hdot broke"></span>已中断</span><span>Claude Code</span><span>7/10</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

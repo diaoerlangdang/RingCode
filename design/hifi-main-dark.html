@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 高保真深色主题 · 主推方向 B</title>
+<style>
+  :root {
+    --bg: #0e1216;
+    --surface: #171b20;
+    --surface-2: #1e2329;
+    --surface-3: #252a31;
+    --surface-hover: #252b33;
+    --border: #2f353d;
+    --border-strong: #3c434d;
+    --text: #e6edf3;
+    --text-2: #9fb0c3;
+    --text-3: #6b7a8a;
+    --accent: #4dabf7;
+    --accent-soft: rgba(77,171,247,0.12);
+    --accent-text: #74c0fc;
+    --folder: #6c849c;
+    --folder-tab: #5a728a;
+    --file: #94a3b8;
+    --success: #51cf66;
+    --warning: #ffd43b;
+    --error: #ff6b6b;
+    --radius: 8px;
+    --shadow: 0 4px 20px rgba(0,0,0,0.35);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #080a0c; color: var(--text); padding: 24px; font-size: 13px; }
+  .doc-title { margin-bottom: 16px; color: var(--text-2); font-size: 13px; }
+  .screen { width: 1440px; height: 860px; background: var(--bg); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; display: flex; flex-direction: column; box-shadow: var(--shadow); margin-bottom: 24px; position: relative; }
+
+  /* 顶栏 */
+  .topbar { height: 52px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: 20px; }
+  .brand img { width: 34px; height: 34px; border-radius: 8px; object-fit: cover; }
+  .brand span { font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: 0.5px; }
+  .brand-left { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 20px 16px 16px; border-bottom: 1px solid var(--border); margin-bottom: 6px; flex-shrink: 0; text-align: center; }
+  .brand-left img { width: 72px; height: 72px; border-radius: 16px; object-fit: cover; }
+  .brand-left span { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: 0.5px; }
+  .tool-btn img { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
+  .t-btn { display: flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: var(--radius); font-size: 12px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); transition: 0.15s; }
+  .t-btn:hover { background: var(--surface-3); border-color: var(--border-strong); }
+  .t-icon { width: 14px; height: 14px; background: var(--text-3); border-radius: 3px; }
+  .spacer { flex: 1; }
+  .tool-btn { width: 36px; height: 32px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); transition: 0.15s; }
+  .tool-btn:hover { background: var(--surface-3); }
+
+  /* 主体 */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 左导航 */
+  .left { width: 250px; flex-shrink: 0; border-right: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .nav-scroll { flex: 1; overflow-y: auto; padding: 10px 0; }
+  .nav-group { padding: 8px 0; }
+  .nav-group .group-title { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 0 16px 7px; letter-spacing: 1px; text-transform: uppercase; }
+  .nav-item { padding: 6px 16px; margin: 0 10px; border-radius: var(--radius); font-size: 12px; color: var(--text-2); display: flex; align-items: center; gap: 7px; cursor: default; }
+  .nav-item:hover { background: var(--surface-hover); color: var(--text); }
+  .nav-item.active { background: var(--accent-soft); color: var(--accent-text); }
+  .nav-item.indent { padding-left: 32px; }
+  .nav-item .chev { width: 10px; color: var(--text-3); font-size: 10px; }
+  .nav-item .dot { width: 6px; height: 6px; border-radius: 50%; border: 1.5px solid var(--text-3); }
+  .nav-item.active .dot { background: var(--accent); border-color: var(--accent); }
+  .nav-item .star { color: var(--warning); font-size: 11px; }
+
+  /* 中区 */
+  .center { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .center-fm { height: 40%; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; }
+  .center-terminal { height: 60%; display: flex; flex-direction: column; background: var(--surface-2); }
+
+  .pane-tabs { height: 38px; display: flex; align-items: center; background: var(--surface-2); border-bottom: 1px solid var(--border); padding: 0 10px; gap: 2px; flex-shrink: 0; }
+  .pane-tabs .tab { padding: 8px 14px; font-size: 12px; color: var(--text-3); border-radius: 6px 6px 0 0; display: flex; align-items: center; gap: 6px; }
+  .pane-tabs .tab.active { color: var(--text); background: var(--surface); border: 1px solid var(--border); border-bottom-color: var(--surface); }
+  .pane-tabs .tab .dot-run { width: 6px; height: 6px; border-radius: 50%; background: var(--success); }
+
+  .fm-toolbar { height: 42px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .fm-btn { width: 28px; height: 28px; border-radius: var(--radius); display: flex; align-items: center; justify-content: center; font-size: 13px; color: var(--text-2); background: var(--surface-2); border: 1px solid var(--border); }
+  .fm-btn:hover { background: var(--surface-3); color: var(--text); }
+  .breadcrumb { font-size: 12px; color: var(--text-2); font-family: "JetBrains Mono", Consolas, monospace; flex: 1; }
+  .breadcrumb span { color: var(--text-3); }
+  .breadcrumb span:last-child { color: var(--text); font-weight: 600; }
+  .view-switch { display: flex; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface-2); }
+  .view-switch .v { padding: 5px 11px; font-size: 11px; color: var(--text-3); border-right: 1px solid var(--border); }
+  .view-switch .v:last-child { border-right: none; }
+  .view-switch .v.active { background: var(--surface); color: var(--text); }
+
+  .fm-grid { flex: 1; padding: 18px; display: grid; grid-template-columns: repeat(auto-fill, 96px); grid-auto-rows: 82px; gap: 10px; align-content: start; overflow: auto; }
+  .fm-item { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; padding: 10px 6px; border-radius: var(--radius); cursor: default; }
+  .fm-item:hover { background: var(--surface-hover); }
+  .fm-item.sel { background: var(--accent-soft); }
+  .fm-icon { width: 38px; height: 32px; border-radius: 4px 4px 0 0; position: relative; }
+  .fm-icon.folder { background: var(--folder); }
+  .fm-icon.folder::after { content: ''; position: absolute; top: -6px; left: 0; width: 16px; height: 6px; background: var(--folder-tab); border-radius: 3px 3px 0 0; }
+  .fm-icon.file { background: var(--file); }
+  .fm-icon.file::after { content: ''; position: absolute; top: 0; right: 0; width: 0; height: 0; border-style: solid; border-width: 0 11px 11px 0; border-color: transparent var(--surface) transparent transparent; }
+  .fm-name { font-size: 11px; color: var(--text-2); text-align: center; max-width: 86px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fm-item.sel .fm-name { color: var(--accent-text); }
+
+  /* 终端 */
+  .pane-body { flex: 1; position: relative; overflow: hidden; padding: 14px; }
+  .terminal-mock { width: 100%; height: 100%; background: #0a0c0f; border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; color: #c9d1d9; font-family: "JetBrains Mono", Consolas, monospace; font-size: 13px; line-height: 1.85; box-shadow: inset 0 1px 4px rgba(0,0,0,0.4); }
+  .terminal-mock .prompt { color: var(--text-3); }
+  .terminal-mock .accent { color: var(--accent-text); }
+  .terminal-mock .cmd { color: #a5d6ff; }
+  .terminal-mock .cursor { display: inline-block; width: 7px; height: 15px; background: var(--accent); vertical-align: middle; }
+
+  /* 右栏 */
+  .right { width: 300px; flex-shrink: 0; border-left: 1px solid var(--border); display: flex; flex-direction: column; background: var(--surface); }
+  .right-section { border-bottom: 1px solid var(--border); padding: 16px; }
+  .right-section .title { font-size: 10px; font-weight: 700; color: var(--text-3); margin-bottom: 10px; letter-spacing: 1px; text-transform: uppercase; }
+  .session-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; font-size: 12px; color: var(--text-2); background: var(--surface-2); }
+  .session-card .row { display: flex; justify-content: space-between; margin: 6px 0; }
+  .session-card .k { color: var(--text-3); }
+  .session-card .running { color: var(--success); font-weight: 700; }
+  .history-list { flex: 1; overflow: hidden; padding: 8px 16px; }
+  .history-item { padding: 11px 12px; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 7px; background: var(--surface-2); }
+  .history-item .h-title { color: var(--text); font-size: 12px; margin-bottom: 4px; font-weight: 600; }
+  .history-item .h-meta { color: var(--text-3); font-size: 10px; display: flex; gap: 10px; }
+  .hdot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .hdot.run { background: var(--success); } .hdot.end { background: var(--text-3); } .hdot.broke { background: var(--error); }
+
+  /* 弹窗/浮层 */
+  .modal-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.55); display: flex; align-items: center; justify-content: center; z-index: 10; }
+  .modal { background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; padding: 24px; width: 520px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+  .modal h3 { font-size: 15px; margin-bottom: 16px; color: var(--text); }
+  .modal-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--text-2); }
+  .modal-row:last-child { border-bottom: none; }
+  .modal-row .k { color: var(--text-3); }
+  .modal-row .masked { color: var(--text-3); font-family: monospace; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .btn { padding: 8px 16px; border-radius: var(--radius); font-size: 12px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); }
+  .btn.primary { background: var(--accent); color: #081018; border-color: var(--accent); font-weight: 600; }
+
+  /* 命令面板 */
+  .command-palette { position: absolute; top: 80px; left: 50%; transform: translateX(-50%); width: 640px; background: var(--surface); border: 1px solid var(--border-strong); border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); z-index: 10; overflow: hidden; }
+  .cp-input { width: 100%; padding: 16px 18px; background: var(--surface-2); border: none; border-bottom: 1px solid var(--border); color: var(--text); font-size: 14px; outline: none; }
+  .cp-group { padding: 8px 0; }
+  .cp-group-title { padding: 6px 18px; font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 1px; }
+  .cp-item { padding: 9px 18px; display: flex; justify-content: space-between; align-items: center; color: var(--text-2); font-size: 12px; }
+  .cp-item:hover, .cp-item.active { background: var(--accent-soft); color: var(--accent-text); }
+  .cp-key { color: var(--text-3); font-size: 10px; font-family: "JetBrains Mono", monospace; }
+  .cp-item.active .cp-key { color: var(--accent-text); }
+
+  /* Toast */
+  .toast { position: absolute; bottom: 20px; right: 20px; background: var(--surface); border: 1px solid var(--border-strong); border-left: 3px solid var(--accent); border-radius: var(--radius); padding: 12px 16px; box-shadow: var(--shadow); color: var(--text-2); font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="doc-title">金刚琢 · 高保真深色主题(主推方向 B · 深色驾驶舱)</div>
+
+  <!-- 1. 主界面 -->
+  <div class="screen">
+    <div class="topbar">
+      <div class="t-btn"><span class="t-icon" style="background:#6b7a8a;"></span>▾ 我的workspace</div>
+      <div class="t-btn"><span class="t-icon" style="background:#6b7a8a;"></span>搜索内容</div>
+      <div class="t-btn"><span class="t-icon" style="background:#6b7a8a;"></span>命令面板 <span style="color:var(--text-3)">Ctrl+Shift+P</span></div>
+      <div class="spacer"></div>
+      <div class="tool-btn" title="启动 Claude Code"><img src="../claude.png" alt="Claude Code"></div>
+      <div class="tool-btn" title="启动 Codex"><img src="../codex.png" alt="Codex"></div>
+      <div class="tool-btn" title="设置">⚙</div>
+    </div>
+    <div class="body">
+      <div class="left">
+        <div class="brand-left"><img src="../logo.png" alt="金刚琢"><span>金刚琢</span></div>
+        <div class="nav-scroll">
+          <div class="nav-group">
+            <div class="group-title">工作区</div>
+            <div class="nav-item active"><span class="dot"></span>我的workspace</div>
+            <div class="nav-item"><span class="dot"></span>项目A</div>
+            <div class="nav-item"><span class="dot"></span>网站重构</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">此电脑</div>
+            <div class="nav-item"><span class="chev">▾</span>C:</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Users</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Program Files</div>
+            <div class="nav-item indent"><span class="chev">▸</span>Windows</div>
+            <div class="nav-item"><span class="chev">▸</span>D:</div>
+            <div class="nav-item"><span class="chev">▸</span>E:</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">收藏</div>
+            <div class="nav-item"><span class="star">★</span>docs</div>
+            <div class="nav-item"><span class="star">★</span>组件库</div>
+          </div>
+          <div class="nav-group">
+            <div class="group-title">最近</div>
+            <div class="nav-item">requirements.md</div>
+            <div class="nav-item">design-brief.md</div>
+          </div>
+        </div>
+      </div>
+      <div class="center">
+        <div class="center-fm">
+          <div class="pane-tabs">
+            <div class="tab active">文件管理器</div>
+            <div class="tab">编辑器</div>
+            <div class="tab">预览</div>
+            <div class="tab">diff</div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="fm-toolbar">
+            <div class="fm-btn">←</div>
+            <div class="fm-btn">→</div>
+            <div class="fm-btn">↑</div>
+            <div class="fm-btn">⟳</div>
+            <div class="breadcrumb">E: <span>›</span> workspace <span>›</span> src</div>
+            <div class="fm-btn">＋</div>
+            <div class="view-switch">
+              <div class="v active">图标</div>
+              <div class="v">列表</div>
+              <div class="v">详情</div>
+            </div>
+          </div>
+          <div class="fm-grid">
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">components</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">utils</div></div>
+            <div class="fm-item"><div class="fm-icon folder"></div><div class="fm-name">hooks</div></div>
+            <div class="fm-item sel"><div class="fm-icon file"></div><div class="fm-name">app.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">main.tsx</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">index.css</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">vite.config.ts</div></div>
+            <div class="fm-item"><div class="fm-icon file"></div><div class="fm-name">types.d.ts</div></div>
+          </div>
+        </div>
+        <div class="center-terminal">
+          <div class="pane-tabs">
+            <div class="tab active"><span class="dot-run"></span>claude-code  ①</div>
+            <div class="tab">claude-code ②</div>
+            <div class="tab">powershell</div>
+            <div style="flex:1"></div>
+            <div class="tab" style="color:var(--text-3)">+</div>
+          </div>
+          <div class="pane-body">
+            <div class="terminal-mock">
+              <div><span class="prompt">PS E:\workspace&gt;</span> <span class="cmd">claude</span></div>
+              <div class="accent">╭─ Claude Code v1.x ─────────────────────╮</div>
+              <div>  欢迎回来。这是 AI 会话发生的地方。</div>
+              <div>  /help 查看命令 · /resume 继续历史会话</div>
+              <div class="accent">╰────────────────────────────────────────╯</div>
+              <div><span class="prompt">&gt;</span> <span class="cursor"></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="right">
+        <div class="right-section">
+          <div class="title">当前会话</div>
+          <div class="session-card">
+            <div class="row"><span class="k">工具</span><span>Claude Code</span></div>
+            <div class="row"><span class="k">工作目录</span><span>E:\workspace</span></div>
+            <div class="row"><span class="k">配置方案</span><span>默认 · CC</span></div>
+            <div class="row"><span class="k">状态</span><span class="running">● 运行中</span></div>
+          </div>
+        </div>
+        <div class="right-section" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
+          <div class="title">历史会话</div>
+          <div class="history-list">
+            <div class="history-item">
+              <div class="h-title">重构鉴权模块</div>
+              <div class="h-meta"><span><span class="hdot run"></span>运行中</span><span>Claude Code</span><span>今天 14:20</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">修复终端中文乱码</div>
+              <div class="h-meta"><span><span class="hdot end"></span>已结束</span><span>Codex</span><span>昨天</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">写 README 文档</div>
+              <div class="h-meta"><span><span class="hdot broke"></span>已中断</span><span>Claude Code</span><span>7/10</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="toast">Claude Code 已启动 · 会话记录已创建</div>
+  </div>
+
+  <!-- 2. 命令面板 -->
+  <div class="screen">
+    <!-- 背景模糊主界面 -->
+    <div style="position:absolute; inset:0; filter: blur(1.5px); opacity:0.6; pointer-events:none;">
+      <div class="topbar"><div class="spacer"></div></div>
+    </div>
+    <div class="command-palette">
+      <input class="cp-input" value="新建终端" readonly>
+      <div class="cp-group">
+        <div class="cp-group-title">终端</div>
+        <div class="cp-item active"><span>新建终端</span><span class="cp-key">Ctrl+Shift+T</span></div>
+        <div class="cp-item"><span>分屏终端</span><span class="cp-key"></span></div>
+        <div class="cp-item"><span>关闭终端</span><span class="cp-key"></span></div>
+      </div>
+      <div class="cp-group">
+        <div class="cp-group-title">AI 会话</div>
+        <div class="cp-item"><span>启动 Claude Code</span><span class="cp-key">Ctrl+Shift+1</span></div>
+        <div class="cp-item"><span>启动 Codex</span><span class="cp-key">Ctrl+Shift+2</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 启动确认弹窗 -->
+  <div class="screen">
+    <div style="position:absolute; inset:0; filter: blur(1.5px); opacity:0.6; pointer-events:none;">
+      <div class="topbar"><div class="spacer"></div></div>
+    </div>
+    <div class="modal-overlay">
+      <div class="modal">
+        <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px;">
+          <div style="width:32px; height:32px; border-radius:8px; background:var(--accent-soft); color:var(--accent-text); display:flex; align-items:center; justify-content:center; font-weight:700;">CC</div>
+          <h3>启动 Claude Code 会话</h3>
+        </div>
+        <div class="modal-row"><span class="k">工具</span><span>Claude Code (claude.exe)</span></div>
+        <div class="modal-row"><span class="k">工作目录</span><span>E:\workspace</span></div>
+        <div class="modal-row"><span class="k">配置方案</span><span>默认 · CC</span></div>
+        <div class="modal-row"><span class="k">模型</span><span>claude-sonnet-4</span></div>
+        <div class="modal-row"><span class="k">API Key</span><span class="masked">••••••••••••</span></div>
+        <div class="modal-row"><span class="k">环境变量</span><span class="masked">PROXY=•••• 已设置</span></div>
+        <div class="modal-actions">
+          <div class="btn">编辑配置</div>
+          <div class="btn primary">启动会话</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

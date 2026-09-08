@@ -1,0 +1,26 @@
+appId: com.ringcode.app
+productName: 金刚琢
+directories:
+  output: release
+  buildResources: build
+files:
+  - dist/**/*
+  - electron-dist/**/*
+  - package.json
+win:
+  icon: build/icon.ico
+  target:
+    - target: dir
+      arch:
+        - x64
+    - target: nsis
+      arch:
+        - x64
+  artifactName: ${productName}-${version}-${arch}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  shortcutName: 金刚琢
+asar: true
+npmRebuild: false

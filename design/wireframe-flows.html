@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 关键流程线框</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif; background: #e6e6e6; color: #333; padding: 24px; }
+  h1 { font-size: 18px; color: #444; margin-bottom: 24px; }
+  .flow { margin-bottom: 32px; }
+  .flow-title { font-size: 14px; color: #555; margin-bottom: 10px; font-weight: 600; }
+  .flow-title small { color: #999; font-weight: normal; margin-left: 8px; }
+  .screens { display: flex; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+  .screen { width: 420px; height: 280px; background: #f5f5f5; border: 1px solid #c8c8c8; border-radius: 6px; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 2px 8px rgba(0,0,0,0.06); flex-shrink: 0; }
+  .screen.branch { border-color: #d8a8a8; background: #fff8f8; }
+  .screen.ok { border-color: #a0c8a0; background: #f8fff8; }
+  .screen-header { height: 28px; background: #ececec; border-bottom: 1px solid #d8d8d8; display: flex; align-items: center; padding: 0 10px; font-size: 11px; color: #777; }
+  .screen-body { flex: 1; padding: 10px; position: relative; overflow: hidden; font-size: 11px; color: #666; }
+  .arrow { align-self: center; color: #bbb; font-size: 18px; padding-top: 120px; }
+  .or { align-self: center; color: #999; font-size: 11px; padding-top: 120px; }
+
+  /* mini UI */
+  .mini-top { height: 24px; background: #e0e0e0; border-radius: 3px; margin-bottom: 8px; display: flex; align-items: center; padding: 0 6px; gap: 4px; }
+  .mini-logo { width: 16px; height: 16px; background: #bbb; border-radius: 3px; }
+  .mini-title { font-size: 10px; color: #888; }
+  .mini-body { display: flex; gap: 6px; height: calc(100% - 32px); }
+  .mini-left { width: 80px; background: #f0f0f0; border-radius: 3px; padding: 5px; }
+  .mini-center { flex: 1; background: #fafafa; border-radius: 3px; padding: 5px; display: flex; flex-direction: column; }
+  .mini-right { width: 90px; background: #f0f0f0; border-radius: 3px; padding: 5px; }
+  .mini-row { height: 14px; background: #e8e8e8; border-radius: 2px; margin-bottom: 4px; }
+  .mini-row.w { width: 70%; } .mini-row.m { width: 50%; } .mini-row.s { width: 30%; }
+  .mini-btn { display: inline-block; padding: 3px 8px; background: #e0e0e0; border: 1px solid #ccc; border-radius: 3px; font-size: 10px; color: #666; margin-top: 4px; }
+  .mini-btn.primary { background: #d0d0d0; border-color: #aaa; color: #444; }
+  .mini-label { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: #aaa; font-size: 12px; }
+  .mini-alert { background: #ffeaea; border: 1px dashed #e0a0a0; border-radius: 3px; padding: 6px; color: #a06060; font-size: 10px; margin-top: 6px; }
+  .mini-list { margin-top: 4px; }
+  .mini-item { padding: 3px 0; border-bottom: 1px solid #eee; color: #888; font-size: 10px; }
+  .mini-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 4px; }
+  .mini-icon { aspect-ratio: 1; background: #e0e0e0; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 9px; color: #999; }
+  .mini-input { height: 20px; background: #fff; border: 1px solid #d8d8d8; border-radius: 3px; margin: 4px 0; padding: 0 4px; color: #999; font-size: 10px; display: flex; align-items: center; }
+  .mini-status { display: flex; align-items: center; gap: 4px; font-size: 10px; color: #888; margin: 2px 0; }
+  .dot { width: 5px; height: 5px; border-radius: 50%; background: #aaa; }
+  .dot.ok { background: #6a9; } .dot.err { background: #c66; } .dot.warn { background: #ca6; }
+  .mini-tabs { display: flex; gap: 4px; margin-bottom: 4px; }
+  .mini-tab { padding: 2px 6px; background: #e8e8e8; border-radius: 2px; font-size: 9px; color: #888; }
+  .mini-tab.active { background: #d8d8d8; color: #555; }
+  .note { margin-top: 6px; color: #aaa; font-size: 10px; }
+</style>
+</head>
+<body>
+  <h1>金刚琢 · 关键流程线框(7 个流程,含失败分支)</h1>
+
+  <!-- 1. 首次启动向导 -->
+  <div class="flow">
+    <div class="flow-title">1. 首次启动向导 <small>欢迎 → 环境检测 → 选工作区 → 主界面</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">1-1 欢迎页</div>
+        <div class="screen-body">
+          <div class="mini-label">
+            <div style="font-size:18px; margin-bottom:8px;">金刚琢</div>
+            Windows 原生 AI 工作台<br>
+            <span style="font-size:10px; color:#999">本地数据将保存在 …\AppData\Roaming\RingCode</span><br>
+            <span class="mini-btn primary">开始环境检测</span>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">1-2 环境检测</div>
+        <div class="screen-body">
+          <div class="mini-status"><span class="dot ok"></span>Windows 10 (1809+)</div>
+          <div class="mini-status"><span class="dot ok"></span>PowerShell 7.x</div>
+          <div class="mini-status"><span class="dot ok"></span>Claude Code (C:\Users\…\claude.exe)</div>
+          <div class="mini-status"><span class="dot warn"></span>Codex (未检测到)</div>
+          <div class="mini-btn">重新检测</div>
+          <div class="mini-btn">手动配置</div>
+          <div class="mini-btn primary">下一步</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen branch">
+        <div class="screen-header">1-2a 工具未检测到</div>
+        <div class="screen-body">
+          <div class="mini-alert">Claude Code 未检测到<br>搜索路径: C:\Users\Admin\AppData\Roaming\npm\claude.cmd</div>
+          <div class="mini-input">选择可执行文件…</div>
+          <div class="mini-btn">重新检测</div>
+          <div class="mini-btn">跳过,稍后配置</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen ok">
+        <div class="screen-header">1-3 选择第一个工作区</div>
+        <div class="screen-body">
+          <div class="mini-input">浏览文件夹…</div>
+          <div class="mini-list">
+            <div class="mini-item">最近: E:\workspace</div>
+            <div class="mini-item">最近: D:\projects</div>
+          </div>
+          <div class="mini-btn primary">进入主界面</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 启动 AI 会话 -->
+  <div class="flow">
+    <div class="flow-title">2. 启动 AI 会话 <small>点 CC/Codex → 配置确认 → 启动 → 失败分支</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">2-1 点击顶部 CC 入口</div>
+        <div class="screen-body">
+          <div class="mini-top"><div class="mini-logo"></div><div class="mini-title">金刚琢</div><span style="flex:1"></span><span style="background:#d0d0d0; padding:2px 6px; border-radius:3px;">CC</span><span style="background:#e0e0e0; padding:2px 6px; border-radius:3px;">Cx</span></div>
+          <div class="mini-label" style="font-size:12px;">读取工作区默认 Claude Code 配置方案…</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">2-2 启动前确认面板</div>
+        <div class="screen-body">
+          <div class="mini-status">工具: Claude Code</div>
+          <div class="mini-status">工作目录: E:\workspace</div>
+          <div class="mini-status">模型: claude-sonnet-4</div>
+          <div class="mini-status">API Key: ******** (已设置)</div>
+          <div class="mini-status">环境变量: PROXY=**** (掩码)</div>
+          <div class="mini-btn">编辑配置</div>
+          <div class="mini-btn primary">启动会话</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen ok">
+        <div class="screen-header">2-3 启动成功</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-left"><div class="mini-row"></div><div class="mini-row"></div></div>
+            <div class="mini-center">
+              <div class="mini-tabs"><span class="mini-tab active">终端 ①</span></div>
+              <div class="mini-row m"></div>
+              <div class="mini-row w"></div>
+            </div>
+            <div class="mini-right">
+              <div class="mini-row s"></div>
+              <div class="mini-item">会话 1 运行中</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="or">或</or>
+      </div>
+      <div class="screen branch">
+        <div class="screen-header">2-3a 启动失败</div>
+        <div class="screen-body">
+          <div class="mini-alert">Claude Code 启动失败<br>Error: 无法识别模型标识 "claude-sonnet-4"</div>
+          <div class="mini-btn">重新运行</div>
+          <div class="mini-btn">打开配置</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 历史会话搜索与继续 -->
+  <div class="flow">
+    <div class="flow-title">3. 历史会话搜索与继续 <small>打开历史 → 搜索/筛选 → 查看 → 继续 / 新建 / 失败</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">3-1 历史面板打开</div>
+        <div class="screen-body">
+          <div class="mini-input">搜索会话…</div>
+          <div class="mini-tabs"><span class="mini-tab">全部</span><span class="mini-tab active">Claude Code</span><span class="mini-tab">Codex</span></div>
+          <div class="mini-list">
+            <div class="mini-item">重构鉴权模块 · CC · 今天</div>
+            <div class="mini-item">修复终端中文乱码 · Codex · 昨天</div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">3-2 搜索与筛选</div>
+        <div class="screen-body">
+          <div class="mini-input">鉴权</div>
+          <div class="mini-status">工具: Claude Code · 工作区: 全部 · 日期: 近 7 天</div>
+          <div class="mini-list">
+            <div class="mini-item">重构鉴权模块 · CC · 今天 · 运行中</div>
+            <div class="mini-item">鉴权单元测试 · CC · 7/8 · 已结束</div>
+          </div>
+          <div class="mini-btn">清除筛选</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">3-3 查看文本记录</div>
+        <div class="screen-body">
+          <div class="mini-tabs"><span class="mini-tab active">记录</span><span class="mini-tab">信息</span></div>
+          <div class="mini-row w"></div>
+          <div class="mini-row w"></div>
+          <div class="mini-row m"></div>
+          <div class="mini-btn primary">继续会话</div>
+          <div class="mini-btn">基于此记录新建</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen branch">
+        <div class="screen-header">3-4 恢复失败 / 已中断</div>
+        <div class="screen-body">
+          <div class="mini-alert">无法继续原上下文<br>工具升级后会话标识失效,已自动退回「基于此记录新建」。</div>
+          <div class="mini-btn primary">基于此记录新建</div>
+          <div class="mini-btn">仅查看记录</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. Skill 导入与管理 -->
+  <div class="flow">
+    <div class="flow-title">4. Skill 导入与管理 <small>导入本地文件夹 → 计算指纹 → 库中查看/搜索</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">4-1 导入 Skill</div>
+        <div class="screen-body">
+          <div class="mini-input">选择本地 Skill 文件夹…</div>
+          <div class="mini-status">作用域: 全局</div>
+          <div class="mini-btn primary">导入并计算指纹</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen ok">
+        <div class="screen-header">4-2 Skill 库</div>
+        <div class="screen-body">
+          <div class="mini-input">搜索 Skill…</div>
+          <div class="mini-list">
+            <div class="mini-item"><b>代码审查助手</b> · 全局 · sha256:7a3f… · 今天</div>
+            <div class="mini-item"><b>文档生成器</b> · 工作区 · sha256:9e2c… · 昨天</div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen branch">
+        <div class="screen-header">4-2a 导入失败 / 指纹重复</div>
+        <div class="screen-body">
+          <div class="mini-alert">指纹重复: 该 Skill 已存在「代码审查助手」<br>来源: E:\skills\code-review</div>
+          <div class="mini-btn">覆盖</div>
+          <div class="mini-btn">保留现有</div>
+          <div class="mini-btn">取消</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. 文件编辑 + 预览 -->
+  <div class="flow">
+    <div class="flow-title">5. 文件编辑 + 预览 <small>选 Markdown → 编辑 → 预览 → 外部修改冲突</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">5-1 左侧选 Markdown 文件</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-left">
+              <div class="mini-item">README.md</div>
+              <div class="mini-item" style="background:#e0e0e0;">docs/requirements.md ★</div>
+            </div>
+            <div class="mini-center">
+              <div class="mini-tabs"><span class="mini-tab active">requirements.md</span></div>
+              <div class="mini-row w"></div><div class="mini-row w"></div>
+            </div>
+            <div class="mini-right">
+              <div class="mini-tabs"><span class="mini-tab active">预览</span></div>
+              <div class="mini-row w"></div><div class="mini-row m"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">5-2 编辑 + 实时预览</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-center">
+              <div class="mini-tabs"><span class="mini-tab active">requirements.md · 已修改</span></div>
+              <div class="mini-row w"></div><div class="mini-row w"></div><div class="mini-row m"></div>
+            </div>
+            <div class="mini-right">
+              <div class="mini-row w"></div><div class="mini-row w"></div><div class="mini-row m"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen branch">
+        <div class="screen-header">5-3 外部修改冲突</div>
+        <div class="screen-body">
+          <div class="mini-alert">requirements.md 已被外部程序修改<br>你本地有未保存内容。</div>
+          <div class="mini-btn">覆盖本地(丢弃我的修改)</div>
+          <div class="mini-btn">保留本地(覆盖外部)</div>
+          <div class="mini-btn primary">查看 Diff</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 布局调整 -->
+  <div class="flow">
+    <div class="flow-title">6. 布局调整 <small>拖拽尺寸 / 隐藏区域 / 命名布局切换</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">6-1 默认布局</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-left" style="width:60px;">导航</div>
+            <div class="mini-center">文件管理器 40%</div>
+            <div class="mini-right" style="width:60px;">会话</div>
+          </div>
+          <div class="note">拖拽分栏边界调整尺寸 · 双击标题栏临时最大化</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">6-2 隐藏左栏 / 右栏</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-center" style="flex:1;">文件管理器扩展</div>
+            <div class="mini-right" style="width:20px; background:#d8d8d8;">‹</div>
+          </div>
+          <div class="note">Ctrl+B 切换左栏 · Ctrl+Alt+B 切换右栏 · Ctrl+J 切换终端</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen ok">
+        <div class="screen-header">6-3 命名布局切换</div>
+        <div class="screen-body">
+          <div class="mini-tabs"><span class="mini-tab">编码</span><span class="mini-tab active">文件管理</span><span class="mini-tab">专注终端</span></div>
+          <div class="mini-body">
+            <div class="mini-center" style="height:70%;">文件管理器 70%</div>
+            <div class="mini-center" style="height:30%;">终端 30%</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7. 命令面板 -->
+  <div class="flow">
+    <div class="flow-title">7. 命令面板 <small>快捷键唤起 → 模糊搜索 → 分组命令 → 执行</small></div>
+    <div class="screens">
+      <div class="screen">
+        <div class="screen-header">7-1 快捷键唤起</div>
+        <div class="screen-body">
+          <div class="mini-label"><span style="font-size:14px; color:#888">Ctrl + Shift + P</span><br>唤起命令面板</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen">
+        <div class="screen-header">7-2 模糊搜索</div>
+        <div class="screen-body">
+          <div class="mini-input">新建终端</div>
+          <div class="mini-item"><b>终端: 新建终端</b> Ctrl+Shift+T</div>
+          <div class="mini-item"><b>终端: 分屏终端</b></div>
+          <div class="mini-item" style="color:#bbb">AI会话: 启动 Claude Code</div>
+        </div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="screen ok">
+        <div class="screen-header">7-3 执行命令</div>
+        <div class="screen-body">
+          <div class="mini-body">
+            <div class="mini-center">
+              <div class="mini-tabs"><span class="mini-tab">终端 ①</span><span class="mini-tab active">终端 ②</span></div>
+              <div class="mini-row m"></div>
+            </div>
+          </div>
+          <div class="note">命令面板关闭,执行「新建终端」</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

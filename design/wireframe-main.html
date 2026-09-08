@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>金刚琢 · 主界面线框(终端上位)</title>
+<!--
+  Junior pass · Assumptions(先 show 布局重心,等反馈再做 hi-fi):
+
+  1. 产品重新定位为「AI 会话工作台」,非 IDE。终端 = AI 会话发生地 = 主角。
+     最高频场景(继续会话/启动会话/切工具)都围绕终端,故终端为默认重心。
+  2. 默认布局把终端区「上位」:中区上(编辑器/预览,辅助)40% + 中区下(终端,主角)60%。
+     这与 requirements 5.1(终端是中间下方小条)不同 —— 重心从编辑器转到会话。
+  3. 命名布局(专注终端 / 编码 / 文档)让用户按场景切重心,已在 brief 4.2。
+  4. 本稿只验证布局重心,灰阶线框,不涉及主题色/字体/图标(下一步 3 气质对比稿定)。
+  5. 所有区域可拖拽调尺寸 / 隐藏 / 最大化(UI-001/002/003);虚线框 = 可调边界。
+
+  待用户确认:终端上位的默认重心对不对?确认后做 7 流程线框 + 3 气质 hi-fi 对比。
+-->
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    background: #e6e6e6;
+    color: #333;
+    padding: 24px;
+  }
+  .doc-title { margin-bottom: 14px; color: #444; font-size: 14px; }
+  .doc-title small { color: #999; font-size: 12px; margin-left: 8px; }
+  .frame {
+    width: 1440px; height: 860px;
+    background: #f5f5f5;
+    border: 1px solid #c8c8c8;
+    border-radius: 6px;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+  }
+
+  /* —— 顶栏 —— */
+  .topbar {
+    height: 48px; flex-shrink: 0;
+    background: #ececec; border-bottom: 1px solid #d0d0d0;
+    display: flex; align-items: center; padding: 0 14px; gap: 10px;
+  }
+  .slot {
+    border: 1px dashed #aaa; border-radius: 4px;
+    padding: 6px 12px; font-size: 12px; color: #666; background: #fafafa;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .icon-box {
+    width: 14px; height: 14px; border: 1px dashed #aaa; border-radius: 2px; flex-shrink: 0;
+  }
+  .spacer { flex: 1; }
+  .tool-btn {
+    border: 1px dashed #aaa; border-radius: 4px;
+    width: 34px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; color: #555; background: #fafafa; font-weight: 600;
+  }
+
+  /* —— 主体 —— */
+  .body { flex: 1; display: flex; min-height: 0; }
+
+  /* 左栏 */
+  .left { width: 240px; flex-shrink: 0; border-right: 1px solid #d8d8d8; display: flex; flex-direction: column; }
+  .left-tabs { height: 40px; display: flex; border-bottom: 1px solid #e0e0e0; background: #f0f0f0; }
+  .left-tabs .tab { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 11px; color: #999; border-right: 1px solid #e8e8e8; }
+  .left-tabs .tab:last-child { border-right: none; }
+  .left-tabs .tab.active { color: #333; background: #f8f8f8; box-shadow: inset 0 -2px 0 #888; }
+  .left-content { flex: 1; padding: 12px 10px; font-size: 12px; color: #888; font-family: "JetBrains Mono", Consolas, monospace; line-height: 1.9; }
+  .left-content .dir { color: #666; }
+  .left-content .file { color: #999; }
+  .left-content .indent { padding-left: 14px; }
+  .left-content .indent2 { padding-left: 28px; }
+
+  /* 中区 */
+  .center { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .center-editor { height: 40%; border-bottom: 1px solid #d8d8d8; display: flex; flex-direction: column; }
+  .center-terminal { height: 60%; display: flex; flex-direction: column; background: #f9f9f9; }
+
+  .pane-tabs { height: 36px; display: flex; align-items: center; background: #f0f0f0; border-bottom: 1px solid #e0e0e0; padding: 0 8px; gap: 2px; }
+  .pane-tabs .tab { padding: 6px 12px; font-size: 11px; color: #999; border: 1px solid transparent; border-radius: 3px 3px 0 0; }
+  .pane-tabs .tab.active { color: #333; background: #f8f8f8; border-color: #e0e0e0; border-bottom-color: #f8f8f8; }
+  .pane-tabs .add { color: #bbb; font-size: 14px; padding: 6px 10px; }
+
+  .pane-body { flex: 1; position: relative; overflow: hidden; }
+
+  .label {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    text-align: center; color: #aaa; font-size: 13px;
+  }
+  .label .role { display: block; font-size: 10px; color: #bbb; margin-top: 6px; letter-spacing: 1px; }
+
+  .terminal-mock {
+    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+    width: 78%; color: #777;
+    font-family: "JetBrains Mono", Consolas, monospace; font-size: 12.5px; line-height: 1.9;
+    border: 1px dashed #ccc; border-radius: 4px; padding: 14px 18px; background: #fff;
+  }
+  .terminal-mock .prompt { color: #aaa; }
+  .terminal-mock .accent { color: #555; }
+  .terminal-mock .cursor { display: inline-block; width: 7px; height: 14px; background: #888; vertical-align: middle; }
+
+  /* 右栏 */
+  .right { width: 300px; flex-shrink: 0; border-left: 1px solid #d8d8d8; display: flex; flex-direction: column; }
+  .right-section { border-bottom: 1px solid #e8e8e8; padding: 12px; }
+  .right-section .title { font-size: 10px; color: #999; margin-bottom: 8px; letter-spacing: 1.5px; }
+  .session-card { border: 1px dashed #bbb; border-radius: 4px; padding: 10px; font-size: 11.5px; color: #666; }
+  .session-card .row { display: flex; justify-content: space-between; margin: 4px 0; }
+  .session-card .k { color: #aaa; }
+  .session-card .running { color: #5a8; }
+
+  .history-list { flex: 1; overflow: hidden; padding: 8px 12px; }
+  .history-item { padding: 8px 10px; border: 1px solid #e8e8e8; border-radius: 4px; margin-bottom: 6px; }
+  .history-item .h-title { color: #555; font-size: 12px; margin-bottom: 3px; }
+  .history-item .h-meta { color: #aaa; font-size: 10px; display: flex; gap: 8px; }
+  .dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+  .dot.run { background: #6a9; } .dot.end { background: #ccc; } .dot.broke { background: #c66; }
+
+  /* 标注 */
+  .annotation {
+    position: absolute; font-size: 10px; color: #b54a3a;
+    background: #fff; padding: 2px 7px; border: 1px solid #f0c8c0; border-radius: 3px; white-space: nowrap;
+  }
+  .ann-good { color: #3a7a4a; border-color: #c0e0c8; }
+
+  /* 比例标尺 */
+  .ratio-mark {
+    position: absolute; right: 8px; top: 8px; font-size: 10px; color: #bbb;
+    font-family: "JetBrains Mono", Consolas, monospace;
+  }
+</style>
+</head>
+<body>
+  <div class="doc-title">金刚琢 · 主界面线框 <small>默认布局 · 终端上位(会话为重心)· 灰阶示意,非最终视觉</small></div>
+
+  <div class="frame">
+    <!-- 顶栏 -->
+    <div class="topbar">
+      <div class="slot"><span class="icon-box"></span>▾ 我的workspace</div>
+      <div class="slot"><span class="icon-box"></span>搜索内容</div>
+      <div class="slot"><span class="icon-box"></span>命令面板 <span style="color:#bbb">Ctrl+Shift+P</span></div>
+      <div class="spacer"></div>
+      <div class="tool-btn" title="启动 Claude Code">CC</div>
+      <div class="tool-btn" title="启动 Codex">Cx</div>
+      <div class="tool-btn" title="设置">⚙</div>
+    </div>
+
+    <div class="body">
+      <!-- 左栏:文件管理器(组织手段) -->
+      <div class="left">
+        <div class="left-tabs">
+          <div class="tab active">工作区</div>
+          <div class="tab">文件</div>
+          <div class="tab">收藏</div>
+          <div class="tab">最近</div>
+        </div>
+        <div class="left-content">
+          <div class="dir">▾ src/</div>
+          <div class="indent dir">▾ components/</div>
+          <div class="indent2 file">app.tsx</div>
+          <div class="indent2 file">main.tsx</div>
+          <div class="indent file">index.css</div>
+          <div class="dir">▸ docs/</div>
+          <div class="indent file">requirements.md</div>
+          <div class="indent file">design-brief.md</div>
+          <div class="dir">▸ design/</div>
+          <div class="file">README.md</div>
+          <div class="file">package.json</div>
+        </div>
+      </div>
+
+      <!-- 中区 -->
+      <div class="center">
+        <!-- 中区上:编辑器/预览(辅助) -->
+        <div class="center-editor">
+          <div class="pane-tabs">
+            <div class="tab active">requirements.md</div>
+            <div class="tab">preview</div>
+            <div class="tab">diff</div>
+            <div style="flex:1"></div>
+          </div>
+          <div class="pane-body">
+            <div class="ratio-mark">40%</div>
+            <div class="label">
+              编辑器 / 预览 / Diff
+              <span class="role">辅助 · 可隐藏(Ctrl+J) · 命名布局「编码 / 文档」时上位</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 中区下:终端(主角) -->
+        <div class="center-terminal">
+          <div class="pane-tabs">
+            <div class="tab active">● claude-code  ①</div>
+            <div class="tab">claude-code ②</div>
+            <div class="tab">powershell</div>
+            <div style="flex:1"></div>
+            <div class="add">+</div>
+          </div>
+          <div class="pane-body">
+            <div class="ratio-mark">60%</div>
+            <div class="terminal-mock">
+              <div><span class="prompt">PS E:\workspace&gt;</span> claude</div>
+              <div class="accent">╭─ Claude Code v1.x ─────────────────────╮</div>
+              <div>  欢迎回来。这是 AI 会话发生的地方。</div>
+              <div>  /help 查看命令　·　/resume 继续历史会话</div>
+              <div class="accent">╰────────────────────────────────────────╯</div>
+              <div><span class="prompt">&gt;</span> <span class="cursor"></span></div>
+            </div>
+            <div class="annotation ann-good" style="bottom:12px; right:12px;">★ 主角 · AI 会话发生地 · 默认占中区 60%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右栏 -->
+      <div class="right">
+        <div class="right-section">
+          <div class="title">当前会话</div>
+          <div class="session-card">
+            <div class="row"><span class="k">工具</span><span>Claude Code</span></div>
+            <div class="row"><span class="k">工作目录</span><span>E:\workspace</span></div>
+            <div class="row"><span class="k">配置方案</span><span>默认 · CC</span></div>
+            <div class="row"><span class="k">状态</span><span class="running">● 运行中</span></div>
+          </div>
+        </div>
+        <div class="right-section" style="flex:1; display:flex; flex-direction:column; padding-bottom:0;">
+          <div class="title">历史会话</div>
+          <div class="history-list">
+            <div class="history-item">
+              <div class="h-title">重构鉴权模块</div>
+              <div class="h-meta"><span><span class="dot run"></span>运行中</span><span>Claude Code</span><span>今天 14:20</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">修复终端中文乱码</div>
+              <div class="h-meta"><span><span class="dot end"></span>已结束</span><span>Codex</span><span>昨天</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">写 README 文档</div>
+              <div class="h-meta"><span><span class="dot broke"></span>已中断</span><span>Claude Code</span><span>7/10</span></div>
+            </div>
+            <div class="history-item">
+              <div class="h-title">数据库迁移脚本</div>
+              <div class="h-meta"><span><span class="dot end"></span>已结束</span><span>Claude Code</span><span>7/9</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
