@@ -3,6 +3,7 @@
   "version": "0.3.1",
   "description": "金刚琢 - 以本地工作区为中心的 Windows 原生 AI 工作台",
   "license": "MIT",
+  "author": "diaoerlangdang",
   "private": true,
   "type": "module",
   "main": "electron-dist/main.js",
