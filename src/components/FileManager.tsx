@@ -11,6 +11,7 @@ import { ptyClient } from '@/lib/ptyClient'
 import { getFileCategory } from '@/lib/languages'
 import { isTypingTarget } from '@/hooks/useShortcuts'
 import { resolvePasteDestName } from '@/lib/fmPaste'
+import { fileEntryContextFromTreePath, fileEntryTargetSegments } from '@/lib/fileManagerPath'
 import type { FsEntry } from '@/types'
 
 type View = 'grid' | 'list' | 'detail' | 'tree'
@@ -338,6 +339,12 @@ export function FileManager() {
   const absOf = (segs: string[]) =>
     handle.kind === 'electron' ? joinWinPath(handle.rootPath, segs) : segs.join('/')
 
+  const revealInExplorer = (p: string) => {
+    void window.ringcode?.revealInExplorer(p)?.catch((err: unknown) => {
+      showToast(`无法在资源管理器中显示：${err instanceof Error ? err.message : String(err)}`, 'error')
+    })
+  }
+
   const startDrag = (e: React.DragEvent, segs: string[]) => {
     const p = absOf(segs)
     e.dataTransfer.setData('application/x-ringcode-path', p)
@@ -552,10 +559,7 @@ export function FileManager() {
                 </button>
                 <button
                   className="btn"
-                  onClick={() => {
-                    const full = [handle.rootPath, ...segments].join('\\')
-                    window.ringcode?.revealInExplorer(full)
-                  }}
+                  onClick={() => revealInExplorer(joinWinPath(handle.rootPath, segments))}
                 >
                   在资源管理器中查看
                 </button>
@@ -653,18 +657,18 @@ export function FileManager() {
                     const c = ctx
                     setCtx(null)
                     if (c.isDir) {
-                      goto([...c.segs, c.name])
+                      goto(fileEntryTargetSegments(c))
                       setSelected(null)
                     } else {
                       // 按 c.segs 打开（树视图右键时 c.segs 可能不是当前目录）
-                      void openFile(handle, [...c.segs, c.name]).then((f) => {
+                      void openFile(handle, fileEntryTargetSegments(c)).then((f) => {
                         if (f) {
                           setCenterTopTab('editor')
                           const ws = workspaces.find((w) => w.id === activeWorkspaceId)
                           if (ws) {
                             touchRecentFile({
                               name: c.name,
-                              segments: [...c.segs, c.name],
+                              segments: fileEntryTargetSegments(c),
                               workspaceId: ws.id,
                               workspacePath: ws.path,
                             })
@@ -711,7 +715,7 @@ export function FileManager() {
                     onClick={() => {
                       const c = ctx
                       setCtx(null)
-                      void pasteInto([...c.segs, c.name])
+                      void pasteInto(fileEntryTargetSegments(c))
                     }}
                   >
                     <span>粘贴到文件夹内</span>
@@ -746,7 +750,7 @@ export function FileManager() {
                     onClick={() => {
                       const c = ctx
                       setCtx(null)
-                      promoteWorkspace([...c.segs, c.name])
+                      promoteWorkspace(fileEntryTargetSegments(c))
                     }}
                   >
                     在此打开工作区
@@ -757,7 +761,7 @@ export function FileManager() {
                   onClick={() => {
                     const c = ctx
                     setCtx(null)
-                    sendToAgent(absOf([...c.segs, c.name]))
+                    sendToAgent(absOf(fileEntryTargetSegments(c)))
                   }}
                 >
                   把路径插入当前终端
@@ -767,7 +771,7 @@ export function FileManager() {
                   onClick={() => {
                     const c = ctx
                     setCtx(null)
-                    void copyPath(false, [...c.segs, c.name])
+                    void copyPath(false, fileEntryTargetSegments(c))
                   }}
                 >
                   复制绝对路径
@@ -777,7 +781,7 @@ export function FileManager() {
                   onClick={() => {
                     const c = ctx
                     setCtx(null)
-                    void copyPath(true, [...c.segs, c.name])
+                    void copyPath(true, fileEntryTargetSegments(c))
                   }}
                 >
                   复制相对路径
@@ -788,7 +792,7 @@ export function FileManager() {
                     onClick={() => {
                       const c = ctx
                       setCtx(null)
-                      void window.ringcode?.revealInExplorer(absOf([...c.segs, c.name]))
+                      revealInExplorer(absOf(fileEntryTargetSegments(c)))
                     }}
                   >
                     在资源管理器中显示
@@ -972,7 +976,11 @@ function FileTreeNode({
             ? (ev) => {
                 ev.preventDefault()
                 ev.stopPropagation()
-                onCtxMenu(ev.clientX, ev.clientY, name, segments, isDir)
+                const entry = fileEntryContextFromTreePath(segments, isDir)
+                if (entry) {
+                  onSelect(entry.name, segments)
+                  onCtxMenu(ev.clientX, ev.clientY, entry.name, entry.segs, entry.isDir)
+                }
               }
             : undefined
         }

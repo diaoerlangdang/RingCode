@@ -16,6 +16,7 @@ import { registerHistoryHandlers } from './history'
 import { registerWatchHandlers, disposeWatcher } from './watch'
 import { registerOwnedResourceHandlers } from './ownedResources'
 import { registerCodexOverlayHandlers } from './codexOverlayWrite'
+import { ensureCodexDesktopProviderAliasIfNeeded } from './codexDesktopConfig'
 import { registerCloneResourceHandlers } from './cloneResources'
 import { registerCloneModelHandlers } from './cloneModels'
 import { registerAppUpdateHandlers } from './appUpdateIpc'
@@ -346,6 +347,10 @@ if (!hasSingleInstanceLock) {
     registerCredHandlers()
     registerOwnedResourceHandlers()
     registerCodexOverlayHandlers()
+    const codexCompatibility = ensureCodexDesktopProviderAliasIfNeeded()
+    if (codexCompatibility && !codexCompatibility.ok) {
+      console.warn(`[RingCode] 无法迁移 Codex 桌面兼容配置：${codexCompatibility.reason}`)
+    }
     registerCloneResourceHandlers(currentAppLaunchPointer)
     registerCloneModelHandlers()
     writeAppLaunchPointer(currentAppLaunchPointer())

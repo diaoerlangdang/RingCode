@@ -1,3 +1,4 @@
+import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +14,9 @@ describe('Codex overlay 归属写入', () => {
     expect(first.ok).toBe(true)
     const second = writeCodexOverlay({ cloneId, profileName: `ringcode-${cloneId}`, content: `${content}model = "x"\n` }, root)
     expect(second.ok).toBe(true)
+    const desktopConfig = path.join(root, '.codex', 'config.toml')
+    expect(fs.readFileSync(desktopConfig, 'utf8')).toContain('[model_providers.ringcode-clone]')
+    expect(fs.readFileSync(desktopConfig, 'utf8')).toContain('requires_openai_auth = true')
     const foreign = writeCodexOverlay(
       { cloneId: 'bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee', profileName: `ringcode-${cloneId}`, content: `# Owned by RingCode. cloneId=bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee\n` },
       root,

@@ -2,6 +2,7 @@ import * as fs from 'node:fs'
 import * as os from 'node:os'
 import * as path from 'node:path'
 import { ipcMain } from 'electron'
+import { ensureCodexDesktopProviderAlias } from './codexDesktopConfig'
 import { registerOwnedResource } from './ownedResources'
 
 const MARKER = 'Owned by RingCode.'
@@ -46,6 +47,10 @@ export function writeCodexOverlay(input: WriteOverlayInput, home = os.homedir())
       { kind: 'codexOverlay', path: file, cloneId: input.cloneId, profileName },
       path.join(home, '.ringcode', 'owned-resources.json'),
     )
+    const compatibility = ensureCodexDesktopProviderAlias(home)
+    if (!compatibility.ok) {
+      console.warn(`[RingCode] 无法写入 Codex 桌面兼容配置：${compatibility.reason}`)
+    }
     return { ok: true, path: file }
   } catch (err) {
     return { ok: false, reason: err instanceof Error ? err.message : String(err) }
