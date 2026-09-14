@@ -43,7 +43,7 @@
 
 - 🤖 **多 Agent 原生聚合驱动**
   - 原生适配并深度集成主流 AI 编程 Agent：**Claude Code**、**Codex CLI**、**OpenCode**、**Antigravity CLI**、**Hermes**，并支持自定义扩充。
-  - **Claude / Codex 分身**：从原版复制入口，独立 Key、URL、模型与权限；会话历史仍共用默认家目录。继续会话默认上次入口，可改选同家族原版或另一个分身。
+  - **Claude / Codex 分身**：从原版复制入口，独立 Key、URL、模型与权限；会话历史仍共用默认家目录。创建/编辑时可拉取模型列表。继续会话默认上次入口，可改选同家族原版或另一个分身。
   - 顶栏最多 4 个具名入口，其余收入「更多」；显隐同时作用于顶栏和更多列表，不影响历史、命令面板与快捷键。
   - 多终端 Tab 自由切换与分屏管理，各会话独立维持生命周期。
 
@@ -79,8 +79,8 @@
 
 | 包装 | 文件名 | 用途 |
 | --- | --- | --- |
-| 免安装 | `金刚琢-<版本>-x64.zip` | 解压后运行 `金刚琢.exe` |
-| 安装版 | `金刚琢-<版本>-x64.exe` | NSIS 安装，带开始菜单快捷方式 |
+| 免安装 | `RingCode-<版本>-x64.zip` | 解压后运行 `金刚琢.exe` |
+| 安装版 | `RingCode-<版本>-x64.exe` | NSIS 安装，带开始菜单快捷方式 |
 
 设置里「检查更新」会按**当前运行的是免安装还是安装版**，指向同一种包装。没有对应附件时只打开发布页，不会自动覆盖本地文件。
 
@@ -112,15 +112,15 @@ npm run dev
 
 #### 检查与打包
 ```bash
-# 执行类型检查与单元测试（当前 45 个文件 / 206 项）
+# 执行类型检查与单元测试（当前 49 个文件 / 226 项）
 npm run typecheck
 npm test
 
-# 生产环境打包（生成绿色便携版 release/金刚琢）
-npm run electron:compile
-npm run build
-npx electron-builder --dir
+# 生产打包：安装版 exe + 免安装 zip
+npm run electron:build
 ```
+
+产物在 `release/RingCode-<version>-x64.zip` 与 `.exe`。解压后的可执行文件仍是 `金刚琢.exe`。完整发版步骤（禁止手压 zip、附件必须 ASCII、网页上传核对）见 [docs/发版打包.md](docs/发版打包.md)。
 
 ---
 
@@ -151,15 +151,18 @@ RingCode/
 │   ├── pathSafe.ts           # 工作区路径白名单
 │   ├── historyIndex.ts       # 磁盘历史检索
 │   ├── cloneLaunchCli.ts     # 分身系统启动器入口
-│   └── cloneResources.ts     # 分身 overlay / 启动器文件
+│   ├── cloneResources.ts     # 分身 overlay / 启动器文件
+│   ├── cloneModels.ts        # 分身「获取模型列表」
+│   ├── claudeSettingsWrite.ts# Claude 分身 --settings 覆盖
+│   └── appUpdate.ts          # GitHub Release 检查更新
 ├── src/
 │   ├── components/           # EditorPane, TerminalView, FileManager, QuickLaunchCluster...
 │   ├── lib/agents.ts         # 内置 Agent 适配器
 │   ├── lib/agentClone.ts     # 分身定义与校验
 │   ├── lib/quickLaunch.ts    # 顶栏显隐与收纳
 │   └── store/                # Zustand（persist v8）
-├── docs/                     # 进度、分身规划、历史规格
-└── release/                  # 生产打包产物
+├── docs/                     # 进度、分身规划、发版打包、历史规格
+└── release/                  # 生产打包产物（RingCode-<version>-x64.zip / .exe）
 ```
 
 ---

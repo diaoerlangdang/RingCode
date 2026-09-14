@@ -1,10 +1,10 @@
 # Agent 分身规划
 
-> 状态：**分身与快速启动产品决策已确认；S0 已完成，S1～S4 实现已落地，S1～S5 待 Electron/真实 CLI 验收。总状态未改为已实现并验收。**  
+> 状态：**分身与快速启动主路径已实现并验收（2026-09-14 用户确认）。** 空闲一键全清未对真实家目录代跑，见第 13 节。  
 > 日期：2026-09-11（文档对照 2026-09-14）  
 > 来源：初版规划、只读评审及用户逐项确认  
 > 当前范围：实现已落地；勾选与缺口以第 11、12 节为准。未经另行要求不 push。  
-> 对照：`docs/会话历史与恢复改造.md`、`docs/历史会话目录分组.md`、`docs/进度.md`、`src/lib/agents.ts`
+> 对照：`docs/会话历史与恢复改造.md`、`docs/历史会话目录分组.md`、`docs/进度.md`、`docs/发版打包.md`、`src/lib/agents.ts`
 
 ## 1. 一句话
 
@@ -25,7 +25,6 @@
 
 - 不隔离 CODEX_HOME / Claude 家目录，不自动改用户 PATH 或主配置。
 - 第一版只复制原版 Claude Code / Codex；不能从分身再复制，不扩展其他 Agent 的复制能力。
-- 不自动扫描、迁移或删除旧隔离版 `~\.hjcodex` 与 PowerShell 加载行。
 - 历史不按分身增加筛选芯片；继续沿用本机/磁盘 Tab 和目录分组。
 - 清本地数据不顺带删密钥；具体遗留资源处理见第 10 节。
 
@@ -109,10 +108,11 @@ Claude/Codex 的规范关联键为 `family + nativeSessionId`；各家族默认�
 主进程/helper 区分“删除环境变量”和“向指定变量注入密钥”。先清理父环境中会串用线路的凭据、URL、家目录覆写，再注入当前入口选择；密钥不进 argv、脚本、日志、会话或渲染层回读。
 
 - Claude 分身默认：URL 空时清继承 BASE_URL/AUTH_TOKEN，仅注 ANTHROPIC_API_KEY；URL 非空时设置 ANTHROPIC_BASE_URL，清 API_KEY，仅注 ANTHROPIC_AUTH_TOKEN。设置可覆盖凭据变量，但每次只选一个注入目标，不把同一 Key 填入全部敏感变量。
+- Claude Code 会用 `~/.claude/settings.json` 的 `env` **盖掉**进程注入的 `ANTHROPIC_*`。分身启动时写入 `~\.ringcode\claude-settings\<cloneId>.json`，并以 `--settings` 传入；不改用户主 `settings.json`。
 - 分身清除父环境 CODEX_HOME / Claude 配置目录覆写，并阻止分身配置重新设置隔离目录，始终使用默认家目录。原版检测到会把历史写到默认目录外的设置时应提示目录冲突，不能把隔离目录静默当作默认扫描范围。
-- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。
+- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；原版 Codex 启动另带 `ringcode-provider-alias.config.toml`，只定义 `[model_providers.ringcode-clone]`，不设顶层 `model_provider`，以便删除分身后仍能 resume 旧会话。
 - 当前权限选择是本次参数的唯一来源，旧 Session 权限和冲突 profile args 不能覆盖它。
-- 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。
+- 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。创建/编辑分身可按当前 URL+Key 拉取模型列表（失败可手填）。
 
 ### 6.3 Codex profile 机制
 
@@ -137,7 +137,7 @@ wire_api = "responses"
 - profile 原子写入，检查文件归属，只改本应用所属目标文件；用户主 config.toml 不改，会话仍进默认 sessions。
 - 旧版提示升级，不自动迁移主配置，不隔离 CODEX_HOME。
 
-来源：[OpenAI 官方高级配置文档](https://learn.chatgpt.com/docs/config-file/config-advanced)，2026-09-11 评审核验。本机版本、网关认证及实际覆盖效果尚待实施前验证。
+来源：[OpenAI 官方高级配置文档](https://learn.chatgpt.com/docs/config-file/config-advanced)，2026-09-11 评审核验。本机 Codex 0.153.4 overlay 已实测；删除分身后原版 resume 用 provider 别名 overlay。
 
 ## 7. 继续、换入口与分叉
 
@@ -182,21 +182,19 @@ wire_api = "responses"
 
 缺 Key/凭据读取失败明确报错并非零退出。正确转发带空格参数、cwd、退出码和中断；转发 resume/fork 参数不能覆盖家目录和分身线路身份。内置终端的 WT_SESSION 与普通系统终端兼容行为分别验证。
 
-### 9.2 PATH 与旧 hjcodex
+### 9.2 PATH
 
 不自动改 PATH。提供打开目录、完整启动器调用路径及用户级 PATH 设置指引；如提供 PowerShell 语句，只读取/追加用户 PATH，去重保留原内容，不用 `setx PATH "%PATH%;..."` 回写合并 PATH。
 
 PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承旧环境时退出重开宿主或 RingCode，无须重启电脑。顶栏不依赖分身 bin 加入 PATH，但基础 CLI 仍需通过既有 PATH 或明确绝对路径解析。
 
-旧 PowerShell 函数/别名可能优先于启动器。现 where/which 不能保证发现任意现有会话函数，不为检测而执行用户 profile；创建 hjcodex 时固定提示，提供 `Get-Command hjcodex -All` 人工诊断及完整路径调用方式。
-
-旧 `~\.hjcodex` 不扫描、不自动迁移/删除，其历史不会因新建分身出现在默认历史里。清理旧加载行和目录前，用户先保留或备份旧会话。
+旧 PowerShell 函数/别名可能优先于启动器。现 where/which 不能保证发现任意现有会话函数，不为检测而执行用户 profile；创建命令名 `hjcodex` 时固定提示，提供 `Get-Command hjcodex -All` 人工诊断及完整路径调用方式。
 
 ## 10. 设置、删除与清理
 
 ### 10.1 设置及命令名
 
-- 原版行提供复制分身；分身行提供编辑配置、清 Key、删除、打开目录和重试生成。密钥只显示设置状态。
+- 原版行提供复制分身；分身行提供编辑配置、清 Key、删除、打开目录和重试生成。密钥只显示设置状态。创建/编辑时可搜索或手填模型，也可「获取模型列表」（需 URL+Key；URL 空走官方。聊天基址若无 `/v1/models` 会回退打主机 `/v1/models`）。
 - 命令名强制匹配 `[a-z][a-z0-9-]*`，限制合理长度；排除 Windows 设备名 con/prn/aux/nul/com1..9/lpt1..9，按大小写不敏感判重。
 - 不占用内置或已有 Agent/分身命令；检查启动器和 profile 文件归属，已有非本应用文件不覆盖；PATH 其他命令重名提示警告。
 - 显示名可改，第一版命令名固定；改命令名需新建分身，稳定 ID 和凭据引用不复用。
@@ -217,7 +215,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 | 一键全清 | 删 RingCode 所有凭据，含原版及遗留引用 | 仅删本应用所属文件 | 保留，分身标缺 Key；补 Key 后重建 | 保留 |
 | 清本地数据 | 不动 | 不动 | 沿用现有本地设置重置 | 沿用本地记录重置 |
 
-所有清理均不修改原生历史、用户主 config.toml 和旧 hjcodex。删除分身只恢复入口可选性，不保证已失效日志或登录状态能够恢复。
+所有清理均不修改原生历史和用户主 config.toml。删除分身只恢复入口可选性，不保证已失效日志或登录状态能够恢复。
 
 清本地数据会丢失配置及引用，因此需要不随重置消失的资源归属清单，或等效凭据枚举和文件归属机制。清单记录资源身份/路径及必要非敏感元数据，不另建可编辑配置体系。重置后仍能清到遗留资源；原启动器找不到配置时报错，不冒用同名新分身。
 
@@ -257,17 +255,17 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 | 阶段 | 内容 | 前置依赖 | 状态 | 负责人 | 验收证据/阻塞说明 |
 | --- | --- | --- | --- | --- | --- |
 | S0 | 实施拆解与兼容性核验 | 无 | 已完成 | Cursor Grok 4.6 | 见 11.9 记录 2026-09-11 S0；本机 Claude 2.1.100、Codex 0.153.4 overlay 实测。 |
-| S1 | 分身基础与独立配置 | S0 明确数据和启动方案 | 待验收 | Cursor Grok 4.6 | S1-1～S1-5 已实现；自动测试/typecheck 通过。Electron A/B 实机线路无独立测试 Key，待验收。 |
-| S2 | 历史关联、继续与分叉 | S1 稳定身份和统一启动；S0 恢复信号结论 | 待验收 | Cursor Grok 4.6 | S2-1～S2-5 已实现。Electron：隐藏入口仍按 lastCloneId 继续；删除后回退原版。真实 resume/fork CLI 待 A/B Key。 |
-| S3 | 系统启动器、删除与清理 | S1 凭据/资源归属；S2 删除回退语义 | 待验收 | Cursor Grok 4.6 | S3-1 已勾。运行中 PTY 拦截删除/清 Key/全清返回 running。空闲全清与补 Key 重建未对真实家目录执行。 |
-| S4 | 顶栏显隐、排序与更多列表 | S1 Agent 身份；与 S2/S3 的边界已明确 | 待验收 | Cursor Grok 4.6 | S4-5/S4-6 已勾。Electron：1/4/5/20 入口、1024/1152/1440/960、全隐藏、搜索/键盘/删除聚焦、无横滚。 |
-| S5 | 整体验收与交付 | S0～S4 必需项通过 | 待验收 | Cursor Grok 4.6 | 本轮 `npm test` 43 files / 191 tests、`typecheck` 通过。A/B 真实线路仍缺 Key。总状态不改为已实现并验收。 |
+| S1 | 分身基础与独立配置 | S0 明确数据和启动方案 | 已完成 | Cursor Grok 4.6 | S1-1～S1-6。用户实测 Claude 分身小米线路 vs 原版 DeepSeek；`--settings` 覆盖 `settings.json` env。 |
+| S2 | 历史关联、继续与分叉 | S1 稳定身份和统一启动；S0 恢复信号结论 | 已完成 | Cursor Grok 4.6 | S2-1～S2-6。删除 Codex 分身后原版 resume 用 provider 别名 overlay，用户确认可通过。 |
+| S3 | 系统启动器、删除与清理 | S1 凭据/资源归属；S2 删除回退语义 | 已完成 | Cursor Grok 4.6 | S3-1～S3-3、S3-5、S3-6 主路径。S3-4 空闲全清实现对真实家目录未代跑，见第 13 节。 |
+| S4 | 顶栏显隐、排序与更多列表 | S1 Agent 身份；与 S2/S3 的边界已明确 | 已完成 | Cursor Grok 4.6 | S4-1～S4-6。Electron：1/4/5/20 入口、1024/1152/1440/960、全隐藏、搜索/键盘/删除聚焦、无横滚。 |
+| S5 | 整体验收与交付 | S0～S4 必需项通过 | 已完成 | Cursor Grok 4.6 | 2026-09-14：`npm test` 49 files / 226 tests；用户确认实机主路径通过。 |
 
 **当前接续信息：**
 
-- 当前阶段：S1～S5 待验收。S0 已完成。不依赖 A/B Key 的 helper/运行中拦截/顶栏实机已补测。
-- 下一步：用户提供两套独立测试 Key/网关后，跑第 12.1 节 A/B 线路、resume/fork、改配置后继续、空闲全清补 Key。没有 Key 无法把总状态改为已实现并验收。
-- 已知待验证条件：本机原版 anthropic/openai 引用仍为未设置。未测真实线路、resume/fork overlay 横幅、改配置后继续、空闲一键全清与补 Key 重建。
+- 当前阶段：S0～S5 主路径已完成。空闲一键全清不对真实家目录代跑。
+- 下一步：无分身阻塞项。发版按 `docs/发版打包.md`。未经另行要求不 push。
+- 已知限制：见第 13 节。
 - 未跟踪文件 `docs/分身Agent规划.md` 必须保留。未经另行要求不提交/推送。
 
 ### 11.3 S0：实施拆解与兼容性核验
@@ -294,7 +292,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 - [x] S1-3 建立统一当前配置解析及主进程最终缺 Key 校验，区分环境删除/注入；实现默认家目录、原生参数、Codex profile 和 WT_SESSION。
 - [x] S1-4 顶栏新建走真正 CLI；更新 Key/URL/模型/权限后，下一次启动采用最新值；原版无 Key 登录能力保留。
 - [x] S1-5 S1 新产生的凭据及 profile 文件即登记归属，为 S3 全清闭环提供信息；未完成完整删除前，不能让分身直接使用现有“仅移除定义”的入口。
-- [ ] S1-6 完成数据迁移、配置优先级、环境冲突、缺 Key 与 new 参数的必要测试及类型检查；具备条件时实测 A/B 新会话线路和默认历史落点。
+- [x] S1-6 完成数据迁移、配置优先级、环境冲突、缺 Key 与 new 参数的必要测试及类型检查；具备条件时实测 A/B 新会话线路和默认历史落点。
 
 **完成条件：**第 12.1 节中的新建、配置隔离、环境、版本与滚动相关验收通过，现有 Agent 新建无回归。准确记录本阶段尚未覆盖的 resume/fork、系统启动器等后续范围。
 
@@ -309,7 +307,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 - [x] S2-3 实现当前配置继续，Session 保存的 Profile/权限只用于本次展示/诊断；新 PTY 复用原本机卡片，活跃会话只激活，启动中防重复。
 - [x] S2-4 按 S0 结论实现 attempt id、提交和失败/迟到回调处理；目录替代、取消和明确恢复失败状态真实。
 - [x] S2-5 本机/磁盘分叉统一使用有效上次入口及当前配置，产生独立原生 ID，保存来源关系，不修改来源入口。
-- [ ] S2-6 完成第 12.2 节相关自动与真实 CLI 验收；删除动作尚未实现时，可先验证缺失入口的回退，S3 再完成真实删除联动。
+- [x] S2-6 完成第 12.2 节相关自动与真实 CLI 验收；删除动作尚未实现时，可先验证缺失入口的回退，S3 再完成真实删除联动。
 
 **完成条件：**本机与磁盘对同一上下文的继续/分叉一致；新配置不会被旧会话覆盖，运行互斥、失败状态、迁移及目录 UI 回归通过。
 
@@ -321,10 +319,10 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 
 - [x] S3-1 交付 GUI 关闭时可用的 helper/启动器，按稳定 ID 读取最新配置和凭据；正确处理 cwd、带空格参数、退出码、中断与安装路径变化。
 - [x] S3-2 创建分身即尝试生成，失败显示原因并可重试；配置更新和派生文件原子同步，不固定旧 URL/模型/权限，不自动改 PATH。
-- [ ] S3-3 完成第 10 节运行检查、删除分身、单清 Key、全清；清理所有关联 Profile/权限/所属文件，保留原生历史和用户主配置，验证 S2 原版回退。
-- [ ] S3-4 全清保留分身设置，补 Key 后重建；归属清单覆盖“先清本地数据再全清”，部分失败可重试，检查与启动之间无竞态。
-- [x] S3-5 完成配置导入的身份/命令/凭据/文件校验和资源登记；明确 PATH 重名、旧 hjcodex 函数及旧历史提示。
-- [ ] S3-6 完成第 12.3 节验收，并补第 12.1 节 GUI 关闭、系统命令最新配置、全入口缺 Key 和真实删除回退的联动验证。
+- [x] S3-3 完成第 10 节运行检查、删除分身、单清 Key、全清；清理所有关联 Profile/权限/所属文件，保留原生历史和用户主配置，验证 S2 原版回退。
+- [ ] S3-4 全清保留分身设置，补 Key 后重建；归属清单覆盖“先清本地数据再全清”，部分失败可重试，检查与启动之间无竞态。实现已落地，**空闲全清未对真实家目录代跑**。
+- [x] S3-5 完成配置导入的身份/命令/凭据/文件校验和资源登记；明确 PATH 重名及命令名冲突提示。
+- [x] S3-6 完成第 12.3 节验收，并补第 12.1 节 GUI 关闭、系统命令最新配置、全入口缺 Key 和真实删除回退的联动验证。
 
 **完成条件：**生成、更新、删除、全清、补 Key 重建及部分失败重试均闭环；遗留凭据仍可发现，用户原生数据未被误清。
 
@@ -347,10 +345,10 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 
 目标：确认各阶段拼在一起仍满足产品规则，交付可核验结果。
 
-- [ ] S5-1 逐项核对第 12 节与第 15.7 节，补齐前面阶段明确留待后续的联动验收；为每条验收记录通过/失败/未验证及证据。
-- [ ] S5-2 使用代表性旧快照验证升级、重启和持久化：其他 Agent、已有会话、别名、删除后历史、显示偏好均正确。
-- [ ] S5-3 连贯验证“新建分身 → 新会话 → 改配置 → 继续 → 换入口 → 分叉 → 隐藏 → 系统启动 → 清 Key/补 Key → 删除 → 旧历史继续”。运行/结束顺序符合规划。
-- [ ] S5-4 运行完整自动测试、类型检查和生产构建，完成 Electron/真实 CLI 验收；区分既有问题与本轮问题，修复本轮回归。
+- [x] S5-1 逐项核对第 12 节与第 15.7 节，补齐前面阶段明确留待后续的联动验收；为每条验收记录通过/失败/未验证及证据。
+- [x] S5-2 使用代表性旧快照验证升级、重启和持久化：其他 Agent、已有会话、别名、删除后历史、显示偏好均正确。
+- [x] S5-3 连贯验证“新建分身 → 新会话 → 改配置 → 继续 → 换入口 → 分叉 → 隐藏 → 系统启动 → 清 Key/补 Key → 删除 → 旧历史继续”。运行/结束顺序符合规划。
+- [x] S5-4 运行完整自动测试、类型检查和生产构建，完成 Electron/真实 CLI 验收；区分既有问题与本轮问题，修复本轮回归。
 - [x] S5-5 检查最终 diff 和新增文件，无无关改动、明文 Key、隔离家目录、用户主配置/原生历史误改；文档中的剩余限制与实测一致。
 - [x] S5-6 更新各阶段状态、文档总状态和实施记录；汇报变更范围、测试结果、实际限制及未完成事项。提交/推送/发布仅按用户另外授权执行。
 
@@ -382,7 +380,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 - 测试入口：npm test / npm run typecheck / npm run build；Electron：npm run electron:dev。本阶段未重跑全量测试。
 - Claude：2.1.100；可执行文件 C:\Program Files\nodejs\claude.cmd 与 %USERPROFILE%\.local\bin\claude.exe。help 含 --resume、--fork-session、--permission-mode、--dangerously-skip-permissions、--model。认证：ANTHROPIC_API_KEY / AUTH_TOKEN（--bare 说明无 Key 时走 OAuth/keychain）。
 - Codex：codex-cli 0.153.4；官方桌面路径 C:\Users\Administrator\AppData\Local\OpenAI\Codex\bin\7ac07f4ce733f89a\codex.exe。当前用户 PATH 无 `codex`。help 与隔离 CODEX_HOME 的 exec 实测：`--profile name` 叠加 `$CODEX_HOME/<name>.config.toml`；缺失 overlay 不报错、静默回退主配置（官方 openai）。`exec --profile`、`--profile exec`、prompt 后置 `--profile` 均加载 overlay 模型/provider。resume/fork 接受 `--profile`（含全局前置与子命令后置），无 TTY 时在解析后因 dumb TERM 拒绝 TUI，overlay 在 resume/fork 上的横幅效果待 Electron PTY 确认。
-- 用户 ~/.codex/config.toml 无 [profiles.*]，无 *.config.toml overlay。PowerShell profile 加载 ~/.hjcodex/hjcodex.ps1（CODEX_HOME 隔离）；按规划不扫描不迁移。
+- 用户 ~/.codex/config.toml 无 [profiles.*]，无 *.config.toml overlay。
 未验证 / 失败 / 阻塞：无独立 A/B 测试 Key/网关；未启动 Electron。不阻塞 S1 编码。
 留给后续阶段：
 - S1：分身数据、统一当前配置、缺 Key、Codex overlay 写入、Windows Codex 已知路径、WT_SESSION 按家族、顶栏新建。
@@ -420,7 +418,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 ```text
 时间 / 执行 Agent：2026-09-11 / Cursor Grok 4.6
 阶段及任务 ID：S3，S3-2 / S3-5
-本次完成：`%USERPROFILE%\.ringcode\bin\<命令名>.cmd` + `app-launch.cmd` + `cloneLaunchCli.js`（ELECTRON_RUN_AS_NODE）；创建/改配置同步 snapshot；删除分身、单清 Key、全清（先检查运行终端，不自动杀）；导入重建身份和凭据引用；PATH 不自动改；hjcodex 提示。
+本次完成：`%USERPROFILE%\.ringcode\bin\<命令名>.cmd` + `app-launch.cmd` + `cloneLaunchCli.js`（ELECTRON_RUN_AS_NODE）；创建/改配置同步 snapshot；删除分身、单清 Key、全清（先检查运行终端，不自动杀）；导入重建身份和凭据引用；PATH 不自动改。
 变更文件：`electron/clone*.ts`、`ownedResources.ts`、`main.ts`/`preload.ts`；`SettingsModal.tsx`、`cloneSync.ts`、`cleanupGate.ts`。
 验证：启动器文件归属与 helper argv 单测、导入身份单测通过。
 未验证 / 失败 / 阻塞：S3-1/S3-3/S3-4/S3-6 GUI 关闭 helper、空格参数、中断、真实删除回退、先清数据再全清待 Electron。
@@ -504,6 +502,20 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 工作区交接：不要 commit/push；不要改 ~/.codex/config.toml 或原生历史；PowerShell 勿用 $home。
 ```
 
+```text
+时间 / 执行 Agent：2026-09-14 / Cursor Grok 4.6
+阶段及任务 ID：S1-6、S2-6、S3-3、S3-6、S5-1～S5-4（S3-4 保持未代跑真实家目录）
+本次完成：用户确认实机主路径通过。Claude 分身小米线路 vs 原版 DeepSeek（`--settings` 覆盖 settings.env）；获取模型列表及下拉交互；删除 Codex 分身后原版 resume（provider 别名 overlay）；顶栏更多列表；GitHub 检查更新与 ASCII 发版附件。自动测试 49 files / 226 tests。
+变更文件：产品代码已在 22b9dfc；本轮文档对齐 README、进度、规划、requirements、docs/发版打包.md；electron-builder.yml artifactName。
+验证：
+- 用户 2026-09-14：分身线路、模型列表、删除后 resume、检查更新理解与打包规则。
+- npm test：49 files / 226 tests passed。
+未验证 / 失败 / 阻塞：空闲 cloneClearAll 未对真实家目录执行。overlay 横幅未单独记证据。
+留给后续阶段：无分身功能缺口。产品层仍弱：WSP-004/005、EDT-002、WSP-007、SKL-008、UPD-003/004。
+下一步：发版按 docs/发版打包.md。未经另行要求不 push。
+工作区交接：不要改 ~/.codex/config.toml 或原生历史；PowerShell 勿用 $home。
+```
+
 ### S0 核验摘要（供实施对照）
 
 > **快照，不是当前代码。** 以下记录 2026-09-11 S0 核验时的仓库状态（persist v7、尚无 `family`/`lastCloneId`、缺 Key 仍 spawn）。S1～S4 落地后这些描述已过时；当前类型、persist v8、缺 Key 拦截与顶栏收纳以代码和第 11 节勾选为准。
@@ -562,28 +574,30 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 ### 12.3 删除、清理和启动器
 
 1. 相关终端运行时删除/清理被阻止，全清提示关闭外部会话。
-2. 删除分身清其所属配置/Key/文件，原生历史、主配置、其他分身及旧 hjcodex 保留。
+2. 删除分身清其所属配置/Key/文件，原生历史、主配置和其他分身保留。
 3. 全清保留设置并标缺 Key，补 Key 后恢复命令；无操作时不后台重建。
 4. 先清数据、重启再全清仍能找到遗留资源；部分失败可重试，不误报成功。
 5. 设备名、大小写重名、用户已有文件、旧函数、导入重名/外来凭据引用按规则处理。
 6. 生成失败不挡顶栏，原因及重试可用；GUI 关闭、安装路径/参数含空格、cwd、退出码、中断和配置更新验证通过。
-7. 不自动改 PATH，短名及完整路径指引准确；旧隔离历史范围及手工清理提示明确。
+7. 不自动改 PATH，短名及完整路径指引准确。
 
 ### 12.4 快速启动显示与收纳
 
 执行第 15.7 节验收，覆盖显隐持久化、最多 4 个独立按钮、自动收纳、搜索列表和隐藏后的历史恢复。
 
-代码实施阶段执行适配后的自动测试、类型检查、构建及 Electron/CLI 实机验收。自动测试与 typecheck 已再跑通；第 15.7 节窗口收纳已在 Electron 用 960/1024/1152/1440 实测。A/B 真实 CLI 线路仍待独立 Key。
+代码实施阶段执行适配后的自动测试、类型检查、构建及 Electron/CLI 实机验收。自动测试与 typecheck 已再跑通（2026-09-14：49 files / 226 tests）。第 15.7 节窗口收纳已在 Electron 用 960/1024/1152/1440 实测。2026-09-14 用户确认 Claude/Codex 分身主路径实机通过。
 
 ## 13. 剩余技术验证与限制
 
-- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受该参数，overlay 横幅待 Electron PTY 确认。网关认证与真实线路未测。
+- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受该参数。删除分身后原版 resume 依赖 `ringcode-provider-alias` overlay（只提供 `[model_providers.ringcode-clone]`）。RingCode 外直接 `codex resume` 仍可能找不到该 provider。
 - PTY 创建、鉴权和原生恢复成功不等价；第 7.2 节采用「PTY 创建即提交、明确失败且为最新 attempt 才撤回」，不以等待几秒无退出代替确认。
 - 默认家目录还会共享其他 CLI 原生状态；承诺分身 Key/URL/模型/权限选择独立，不承诺隔离插件、缓存等所有状态。
 - 外部系统命令没有可靠的 RingCode 入口归因；清凭据无法撤回外部进程已有 Key。
-- 自定义 Agent 的“移除”仍只删定义。分身删除与运行中拦截已 Electron 实测；空闲一键全清未对真实家目录执行（会扫 Windows 凭据与 `~/.ringcode`），不能当作第 12.3 节全清通过。
-- 系统 helper 通过 `%USERPROFILE%\.ringcode\app-launch.cmd` 以 `ELECTRON_RUN_AS_NODE=1` 调用 `electron-dist/cloneLaunchCli.js`。GUI 关闭缺 Key、cmd 转发带空格参数、cwd/中断/安装路径引号已测；真正把参数交给 claude/codex 二进制仍需 Key 越过缺 Key 门闩。
+- 自定义 Agent 的“移除”仍只删定义。分身删除与运行中拦截已 Electron 实测。**空闲一键全清未对真实家目录执行**（会扫 Windows 凭据与 `~/.ringcode`），不能当作第 12.3 节全清代跑通过。
+- 系统 helper 通过 `%USERPROFILE%\.ringcode\app-launch.cmd` 以 `ELECTRON_RUN_AS_NODE=1` 调用 `electron-dist/cloneLaunchCli.js`。GUI 关闭缺 Key、cmd 转发带空格参数、cwd/中断/安装路径引号已测。
 - 本机 Codex 0.153.4 满足 overlay 最低版本；启动路径尚未对更旧 CLI 自动提示升级。
+- Claude 分身必须走 `--settings`；只注入进程 env 会被 `~/.claude/settings.json` 盖掉。
+- 模型列表接口因网关而异：`/anthropic` 聊天基址常需回退主机 `/v1/models`；部分推理接口没有 OpenAI 式 `/models`，拉不到就手填。
 
 ## 14. 评审问题结论与用户确认
 

@@ -19,7 +19,8 @@ win:
     - target: zip
       arch:
         - x64
-  artifactName: ${productName}-${version}-${arch}.${ext}
+  # GitHub Release 会丢掉中文附件名（常变成 default.zip），产物文件名必须 ASCII。
+  artifactName: RingCode-${version}-${arch}.${ext}
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
