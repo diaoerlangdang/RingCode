@@ -1,6 +1,6 @@
 import * as path from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
-import { assertAllowedCwd, resolveSafe, setAllowedRoots } from './pathSafe'
+import { assertAllowedCwd, isSelfOrInside, resolveSafe, setAllowedRoots } from './pathSafe'
 
 const root = path.resolve('E:', 'ws', 'demo')
 const other = path.resolve('E:', 'ws', 'other')
@@ -47,5 +47,13 @@ describe('resolveSafe', () => {
       : root[0].toLowerCase() + root.slice(1)
     expect(resolveSafe(flipped, ['a.ts'])).toBe(path.resolve(root, 'a.ts'))
     expect(assertAllowedCwd(flipped)).toBe(path.resolve(flipped))
+  })
+})
+
+describe('isSelfOrInside', () => {
+  it('treats Windows drive-letter case as the same tree', () => {
+    expect(isSelfOrInside('E:\\ws\\demo\\src', 'e:\\ws\\demo', 'win32')).toBe(true)
+    expect(isSelfOrInside('E:\\ws\\demo', 'e:\\ws\\demo', 'win32')).toBe(true)
+    expect(isSelfOrInside('E:\\ws\\demo2', 'E:\\ws\\demo', 'win32')).toBe(false)
   })
 })

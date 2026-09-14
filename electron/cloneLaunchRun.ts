@@ -4,6 +4,7 @@ import { getCredential } from './cred'
 import { applyCloneLaunchEnv, cloneLaunchEnvPlan } from './cloneLaunchEnv'
 import { buildCodexOverlayToml } from './cloneOverlayToml'
 import { writeCodexOverlay } from './codexOverlayWrite'
+import { writeClaudeSettingsOverlay } from './claudeSettingsWrite'
 import { readCloneSnapshot, type CloneSnapshot } from './cloneSnapshot'
 import { resolveExecutablePath } from './executableResolver'
 
@@ -56,6 +57,35 @@ export async function runCloneLaunch(
     process.stderr.write(`分身 ${config.name} 尚未配置 API Key，请先在 RingCode 中补全密钥。\n`)
     return 1
   }
+  const helperArgs = buildCloneHelperArgv(config, userArgs)
+  let args = helperArgs
+  if (config.family === 'claude') {
+    const injectKey = config.baseUrl.trim() ? 'ANTHROPIC_AUTH_TOKEN' : 'ANTHROPIC_API_KEY'
+    const written = writeClaudeSettingsOverlay(
+      {
+        cloneId: config.cloneId,
+        injectKey,
+        env: {
+          ANTHROPIC_API_KEY: '',
+          ANTHROPIC_AUTH_TOKEN: '',
+          ANTHROPIC_BASE_URL: config.baseUrl.trim(),
+          ANTHROPIC_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+          ANTHROPIC_DEFAULT_HAIKU_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+          ANTHROPIC_DEFAULT_SONNET_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+          ANTHROPIC_DEFAULT_OPUS_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+          ANTHROPIC_DEFAULT_FABLE_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+          CLAUDE_CODE_SUBAGENT_MODEL: config.modelMode === 'custom' ? config.model.trim() : '',
+        },
+        secret,
+      },
+      home,
+    )
+    if (!written.ok) {
+      process.stderr.write(`无法写入 Claude 分身 settings：${written.reason}\n`)
+      return 1
+    }
+    args = ['--settings', written.path, ...helperArgs]
+  }
   if (config.family === 'codex' && config.codexProfileName) {
     const overlay = buildCodexOverlayToml({
       cloneId: config.cloneId,
@@ -79,7 +109,6 @@ export async function runCloneLaunch(
   }
   const plan = cloneLaunchEnvPlan(config.family, config.baseUrl)
   const env = applyCloneLaunchEnv(options.env ?? process.env, plan, secret)
-  const args = buildCloneHelperArgv(config, userArgs)
   const child = (options.spawnProcess ?? spawn)(exe, args, {
     cwd: options.cwd ?? process.cwd(),
     env,

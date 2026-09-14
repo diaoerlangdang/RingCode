@@ -1,7 +1,8 @@
 import { agentById } from './agents'
 import { cloneCodexProfileName } from './agentClone'
 import { agentFamilyOf, isCloneAgent, usesCurrentEntryConfig } from './agentFamily'
-import { buildCodexOverlayToml } from './codexOverlay'
+import { buildClaudeCloneSettingsEnv } from './claudeSettingsOverlay'
+import { buildCodexOverlayToml, buildCodexProviderAliasToml, CODEX_PROVIDER_ALIAS_ID } from './codexOverlay'
 import { launchEnvPlanFor, type LaunchEnvPlan } from './launchEnv'
 import type { AgentDef, PermissionChoice, ToolProfile } from '@/types'
 
@@ -39,6 +40,11 @@ export interface CurrentLaunchConfig {
   envPlan: LaunchEnvPlan
   codexProfile?: string
   overlay?: { profileName: string; content: string; cloneId: string }
+  claudeSettings?: {
+    cloneId: string
+    injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
+    env: Record<string, string>
+  }
 }
 
 export function resolveCurrentLaunchConfig(input: {
@@ -54,8 +60,23 @@ export function resolveCurrentLaunchConfig(input: {
   const baseUrl = clone ? (profile.baseUrl ?? '').trim() : ''
   const envPlan = launchEnvPlanFor(input.agent, { baseUrl })
   const overlay =
-    clone && family === 'codex'
-      ? { ...buildCodexOverlayToml({ cloneId: input.agent.id, baseUrl, model: profile.model, modelMode }), cloneId: input.agent.id }
+    family === 'codex'
+      ? clone
+        ? { ...buildCodexOverlayToml({ cloneId: input.agent.id, baseUrl, model: profile.model, modelMode }), cloneId: input.agent.id }
+        : { ...buildCodexProviderAliasToml(), cloneId: CODEX_PROVIDER_ALIAS_ID }
+      : undefined
+  const claudeSettings =
+    clone && family === 'claude' && envPlan.injectKey
+      ? {
+          cloneId: input.agent.id,
+          injectKey: envPlan.injectKey as 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN',
+          env: buildClaudeCloneSettingsEnv({
+            baseUrl,
+            model: profile.model,
+            modelMode,
+            injectKey: envPlan.injectKey as 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN',
+          }),
+        }
       : undefined
   return {
     agent: input.agent,
@@ -71,6 +92,7 @@ export function resolveCurrentLaunchConfig(input: {
     envPlan,
     codexProfile: overlay?.profileName ?? (clone && family === 'codex' ? cloneCodexProfileName(input.agent.id) : undefined),
     overlay,
+    claudeSettings,
   }
 }
 

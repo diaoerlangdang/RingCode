@@ -62,7 +62,8 @@ describe('clone helper argv', () => {
     })
     await expect(code).resolves.toBe(0)
     expect(spawned[0]?.exe).toBe(process.execPath)
-    expect(spawned[0]?.args).toEqual(expect.arrayContaining(['resume', 'session with space', '--foo bar']))
+    expect(spawned[0]?.args).toEqual(expect.arrayContaining(['--settings', 'resume', 'session with space', '--foo bar']))
+    expect(spawned[0]?.args?.[0]).toBe('--settings')
     expect(spawned[0]?.cwd).toBe(path.join(home, 'proj dir'))
   })
 

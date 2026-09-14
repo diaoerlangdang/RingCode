@@ -80,6 +80,35 @@ describe('当前配置与环境', () => {
     expect(official.content).not.toMatch(/^model = /m)
   })
 
+  it('原版 Codex 带上 ringcode-clone 兼容 overlay，便于删除分身后继续会话', () => {
+    const profile = {
+      id: 'pf-codex-default',
+      name: '默认 · Codex',
+      scope: 'global' as const,
+      tool: 'codex',
+      command: 'C:\\codex.exe',
+      args: '',
+      model: '',
+      modelMode: 'default' as const,
+      envs: [],
+      terminalStrategy: 'new' as const,
+    }
+    const cfg = resolveCurrentLaunchConfig({
+      agent: sourceCodex,
+      profile,
+      permissionByAgent: {},
+    })
+    expect('ok' in cfg && cfg.ok === false).toBe(false)
+    if ('ok' in cfg) return
+    expect(cfg.requireCredential).toBe(false)
+    expect(cfg.codexProfile).toBe('ringcode-provider-alias')
+    expect(cfg.overlay?.cloneId).toBe('codex-provider-alias')
+    expect(cfg.overlay?.content).toContain('[model_providers.ringcode-clone]')
+    expect(cfg.overlay?.content).toContain('requires_openai_auth = true')
+    expect(cfg.overlay?.content).not.toMatch(/^model_provider = /m)
+    expect(cfg.overlay?.content).not.toContain('RINGCODE_CODEX_KEY')
+  })
+
   it('分身缺 Key 拦截，原版无 Key 仍可通过启动准备', async () => {
     const clone = createCloneAgent(sourceClaude, { id: 'c1', name: 'A', commandName: 'claude-a' })
     const blocked = await prepareAgentLaunch(
@@ -121,6 +150,8 @@ describe('当前配置与环境', () => {
     expect(cfg.baseUrl).toBe('https://x')
     expect(cfg.model).toBe('sonnet-x')
     expect(cfg.permission).toBe('dangerous')
+    expect(cfg.claudeSettings?.env.ANTHROPIC_BASE_URL).toBe('https://x')
+    expect(cfg.claudeSettings?.env.ANTHROPIC_MODEL).toBe('sonnet-x')
     expect(resolveLaunchPermission(clone, {})).toBe('auto')
   })
 })

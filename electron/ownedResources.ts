@@ -9,6 +9,7 @@ export type OwnedResource =
   | { kind: 'codexOverlay'; path: string; cloneId: string; profileName: string }
   | { kind: 'launcher'; path: string; cloneId: string; commandName: string }
   | { kind: 'snapshot'; path: string; cloneId: string }
+  | { kind: 'claudeSettings'; path: string; cloneId: string }
 
 interface OwnedResourceFile {
   version: 1
@@ -43,6 +44,7 @@ function sameResource(a: OwnedResource, b: OwnedResource): boolean {
   if (a.kind === 'codexOverlay' && b.kind === 'codexOverlay') return a.path === b.path
   if (a.kind === 'launcher' && b.kind === 'launcher') return a.path === b.path
   if (a.kind === 'snapshot' && b.kind === 'snapshot') return a.path === b.path
+  if (a.kind === 'claudeSettings' && b.kind === 'claudeSettings') return a.path === b.path
   return false
 }
 

@@ -16,6 +16,9 @@ win:
     - target: nsis
       arch:
         - x64
+    - target: zip
+      arch:
+        - x64
   artifactName: ${productName}-${version}-${arch}.${ext}
 nsis:
   oneClick: false

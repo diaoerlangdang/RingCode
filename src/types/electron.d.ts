@@ -16,6 +16,11 @@ export interface PtySpawnOpts {
   extraEnv?: Record<string, string>
   cloneId?: string
   codexOverlay?: { cloneId: string; profileName: string; content: string }
+  claudeSettings?: {
+    cloneId: string
+    injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
+    env: Record<string, string>
+  }
 }
 
 export interface RingCodeApi {
@@ -32,7 +37,7 @@ export interface RingCodeApi {
   credHas: (key: string) => Promise<boolean>
   credDelete: (key: string) => Promise<boolean>
   registerOwnedResource: (item: {
-    kind: 'credential' | 'codexOverlay' | 'launcher' | 'snapshot'
+    kind: 'credential' | 'codexOverlay' | 'launcher' | 'snapshot' | 'claudeSettings'
     id?: string
     path?: string
     cloneId: string
@@ -74,6 +79,12 @@ export interface RingCodeApi {
   cloneClearKey: (cloneId: string) => Promise<{ ok: boolean; results: Array<{ ok: boolean; target: string; reason?: string }>; reason?: string }>
   cloneClearAll: () => Promise<{ ok: boolean; results: Array<{ ok: boolean; target: string; reason?: string }>; reason?: string }>
   cloneRunning: (cloneId?: string) => Promise<boolean>
+  cloneListModels: (input: {
+    family: 'claude' | 'codex'
+    baseUrl?: string
+    apiKey?: string
+    credentialRef?: string
+  }) => Promise<{ ok: true; models: string[]; sourceUrl: string } | { ok: false; reason: string }>
   storeGet: (key: string) => Promise<string | null>
   storeSet: (key: string, value: string) => Promise<void>
   storeDel: (key: string) => Promise<void>
@@ -144,6 +155,20 @@ export interface RingCodeApi {
   historyReadFile: (file: string) => Promise<string | null>
   historyReadSessionPage: (tool: string, sessionId: string, before?: number) => Promise<HistoryFilePage | null>
   historyReadFilePage: (file: string, before?: number) => Promise<HistoryFilePage | null>
+  updateRuntime: () => Promise<{ currentVersion: string; channel: 'portable' | 'installer'; packaged: boolean }>
+  checkAppUpdate: (force?: boolean) => Promise<{
+    ok: boolean
+    currentVersion: string
+    channel: 'portable' | 'installer'
+    packaged: boolean
+    latestVersion: string | null
+    newer: boolean
+    releaseUrl: string
+    downloadUrl: string | null
+    downloadName: string | null
+    message: string
+  }>
+  openUpdateUrl: (url: string) => Promise<boolean>
 }
 
 declare global {

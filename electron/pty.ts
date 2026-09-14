@@ -9,6 +9,7 @@ import { assertAllowedCwd } from './pathSafe'
 import { resolvePtyExecutable } from './executableResolver'
 import { PtyResizeGate } from './ptyLifecycle'
 import { writeCodexOverlay } from './codexOverlayWrite'
+import { writeClaudeSettingsOverlay } from './claudeSettingsWrite'
 import { registerOwnedResource } from './ownedResources'
 
 export interface PtySpawnOpts {
@@ -29,6 +30,11 @@ export interface PtySpawnOpts {
   extraEnv?: Record<string, string>
   cloneId?: string
   codexOverlay?: { cloneId: string; profileName: string; content: string }
+  claudeSettings?: {
+    cloneId: string
+    injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
+    env: Record<string, string>
+  }
 }
 
 interface ManagedPty {
@@ -86,6 +92,14 @@ export function registerPtyHandlers(): void {
       const overlay = writeCodexOverlay(opts.codexOverlay)
       if (!overlay.ok) throw new Error(`无法写入 Codex profile：${overlay.reason}`)
     }
+    const settingsArgs: string[] = []
+    if (opts.claudeSettings && typeof opts.claudeSettings === 'object') {
+      const secret =
+        typeof opts.credentialRef === 'string' && opts.credentialRef ? getCredential(opts.credentialRef) : ''
+      const written = writeClaudeSettingsOverlay({ ...opts.claudeSettings, secret: secret || '' })
+      if (!written.ok) throw new Error(`无法写入 Claude 分身 settings：${written.reason}`)
+      settingsArgs.push('--settings', written.path)
+    }
     if (opts.requireCredential && typeof opts.credentialRef === 'string' && opts.credentialRef) {
       registerOwnedResource({
         kind: 'credential',
@@ -95,7 +109,7 @@ export function registerPtyHandlers(): void {
     }
     const cwd = opts.cwd ? assertAllowedCwd(opts.cwd) : undefined
     const resolved = resolvePtyExecutable(exe)
-    const finalArgs = [...resolved.args, ...(opts.args || [])]
+    const finalArgs = [...resolved.args, ...settingsArgs, ...(opts.args || [])]
     const id = randomUUID()
     const p = pty.spawn(resolved.exe, finalArgs, {
       name: 'xterm-256color',

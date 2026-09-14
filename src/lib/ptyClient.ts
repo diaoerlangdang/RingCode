@@ -16,6 +16,11 @@ export interface SpawnOpts {
   extraEnv?: Record<string, string>
   cloneId?: string
   codexOverlay?: { cloneId: string; profileName: string; content: string }
+  claudeSettings?: {
+    cloneId: string
+    injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
+    env: Record<string, string>
+  }
 }
 
 type DataCb = (tabId: string, data: string) => void

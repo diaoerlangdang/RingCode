@@ -131,7 +131,7 @@ export class MockPty {
         this.cb.out('ringcode\\user\r\n')
         break
       case 'ver':
-        this.cb.out('金刚琢 Mock Shell [Version 0.3.1]\r\n')
+        this.cb.out('金刚琢 Mock Shell [Version 0.4.0]\r\n')
         break
       case 'claude':
       case 'codex':

@@ -33,6 +33,23 @@ export function visibleAgents(agents: AgentDef[], prefs?: QuickLaunchPrefs): Age
   return orderedAgents(agents, prefs).filter((agent) => !hidden.has(agent.id))
 }
 
+export function agentMatchesQuery(agent: AgentDef, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return `${agent.name}\n${agent.command}\n${agent.commandName ?? ''}\n${agent.sourceFamily ?? ''}`.toLowerCase().includes(q)
+}
+
+/** 空搜索只列溢出项；有关键词时在全部可见入口里搜（含已钉在顶栏的）。 */
+export function moreListAgents(
+  visible: AgentDef[],
+  overflow: AgentDef[],
+  pinnedCount: number,
+  query: string,
+): AgentDef[] {
+  const pool = query.trim() || pinnedCount === 0 ? visible : overflow
+  return pool.filter((agent) => agentMatchesQuery(agent, query))
+}
+
 export function fitPinnedCount(input: {
   visibleCount: number
   buttonWidths: number[]

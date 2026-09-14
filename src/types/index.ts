@@ -200,6 +200,8 @@ export interface AppSettings {
   launchPermissionByAgent?: Record<string, PermissionChoice>
   /** 顶栏快速启动显隐与顺序，按稳定 Agent id 保存 */
   quickLaunch?: QuickLaunchPrefs
+  /** 启动检查已忽略的版本号，避免同一版本反复提示 */
+  updateDismissedVersion?: string
 }
 
 /** 最近打开的文件（左栏「最近」） */

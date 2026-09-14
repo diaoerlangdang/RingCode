@@ -10,6 +10,7 @@ import { quoteForShell } from '@/lib/shellQuote'
 import { ptyClient } from '@/lib/ptyClient'
 import { getFileCategory } from '@/lib/languages'
 import { isTypingTarget } from '@/hooks/useShortcuts'
+import { resolvePasteDestName } from '@/lib/fmPaste'
 import type { FsEntry } from '@/types'
 
 type View = 'grid' | 'list' | 'detail' | 'tree'
@@ -27,21 +28,6 @@ interface FmClip {
 type CtxMenu =
   | { kind: 'entry'; x: number; y: number; segs: string[]; name: string; isDir: boolean }
   | { kind: 'blank'; x: number; y: number }
-
-/** 生成不重名：name →「stem - 副本.ext」→「stem - 副本 (2).ext」…（文件夹不做扩展名拆分） */
-function uniqueName(name: string, isDir: boolean, existing: Set<string>): string {
-  if (!existing.has(name)) return name
-  const dot = isDir ? -1 : name.lastIndexOf('.')
-  const stem = dot > 0 ? name.slice(0, dot) : name
-  const ext = dot > 0 ? name.slice(dot) : ''
-  let candidate = `${stem} - 副本${ext}`
-  let i = 2
-  while (existing.has(candidate)) {
-    candidate = `${stem} - 副本 (${i})${ext}`
-    i++
-  }
-  return candidate
-}
 
 export function FileManager() {
   const handle = useFsStore((s) => s.handle)
@@ -179,19 +165,25 @@ export function FileManager() {
     }
   }
 
-  /** 粘贴核心：生成不重名目标并执行复制/移动，返回是否成功 */
+  /** 粘贴核心：复制可自动改名，剪切遇同名失败。 */
   const pasteCore = async (c: FmClip, destSegs: string[]): Promise<boolean> => {
     const srcHandle: DirHandle = { kind: 'electron', rootPath: c.root, name: c.root }
-    const destName = uniqueName(c.name, c.isDir, await existingNames(destSegs))
+    const dest = resolvePasteDestName({
+      name: c.name,
+      isDir: c.isDir,
+      existing: await existingNames(destSegs),
+      cut: c.cut,
+    })
+    if (!dest.ok) {
+      showToast(dest.reason, 'error')
+      return false
+    }
     try {
-      if (c.cut) await moveEntryTo(srcHandle, [...c.segs, c.name], handle, [...destSegs, destName])
-      else await copyEntryTo(srcHandle, [...c.segs, c.name], handle, [...destSegs, destName])
+      if (c.cut) await moveEntryTo(srcHandle, [...c.segs, c.name], handle, [...destSegs, dest.destName])
+      else await copyEntryTo(srcHandle, [...c.segs, c.name], handle, [...destSegs, dest.destName])
       reload()
       bumpTree()
-      showToast(
-        c.cut ? (destName === c.name ? `已移动「${c.name}」` : `已移动为「${destName}」`) : `已粘贴「${destName}」`,
-        'success',
-      )
+      showToast(c.cut ? `已移动「${c.name}」` : `已粘贴「${dest.destName}」`, 'success')
       return true
     } catch (err) {
       showToast(`${c.cut ? '移动' : '粘贴'}失败：${(err as Error).message}`, 'error')
@@ -220,6 +212,15 @@ export function FileManager() {
     await pasteCore({ root: rootKeyOf(), segs: segments, name: selected, isDir: !!en?.isDir, cut: false }, segments)
   }
 
+  const selectedRef = useRef(selected)
+  const segmentsRef = useRef(segments)
+  const entriesRef = useRef(entries)
+  const fmKeysRef = useRef({ doRename, doDelete, doClip, pasteInto })
+  selectedRef.current = selected
+  segmentsRef.current = segments
+  entriesRef.current = entries
+  fmKeysRef.current = { doRename, doDelete, doClip, pasteInto }
+
   // 文件管理器快捷键：F2 重命名 / Delete 删除 / Ctrl+C 复制 / Ctrl+X 剪切 / Ctrl+V 粘贴 / Esc 关菜单。
   // FileManager 常驻挂载（靠 display 切换），故需检查 centerTopTab；输入框/编辑器/终端聚焦时让位。
   useEffect(() => {
@@ -232,28 +233,32 @@ export function FileManager() {
         return
       }
       if (isTypingTarget(e.target)) return
-      if (key === 'f2' && selected) {
+      const currentSelected = selectedRef.current
+      const currentSegments = segmentsRef.current
+      const currentEntries = entriesRef.current
+      const keys = fmKeysRef.current
+      if (key === 'f2' && currentSelected) {
         e.preventDefault()
-        void doRename(segments, selected)
-      } else if (key === 'delete' && selected) {
+        void keys.doRename(currentSegments, currentSelected)
+      } else if (key === 'delete' && currentSelected) {
         e.preventDefault()
-        void doDelete(segments, selected)
-      } else if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'c' && selected) {
+        void keys.doDelete(currentSegments, currentSelected)
+      } else if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'c' && currentSelected) {
         e.preventDefault()
-        const en = entries.find((x) => x.name === selected)
-        doClip(segments, selected, !!en?.isDir, false)
-      } else if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'x' && selected) {
+        const en = currentEntries.find((x) => x.name === currentSelected)
+        keys.doClip(currentSegments, currentSelected, !!en?.isDir, false)
+      } else if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'x' && currentSelected) {
         e.preventDefault()
-        const en = entries.find((x) => x.name === selected)
-        doClip(segments, selected, !!en?.isDir, true)
+        const en = currentEntries.find((x) => x.name === currentSelected)
+        keys.doClip(currentSegments, currentSelected, !!en?.isDir, true)
       } else if (e.ctrlKey && !e.shiftKey && !e.altKey && key === 'v') {
         e.preventDefault()
-        void pasteInto(segments)
+        void keys.pasteInto(currentSegments)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  })
+  }, [])
 
   // 无工作区：首启引导打开文件夹
   if (!activeWorkspaceId) {
@@ -318,11 +323,9 @@ export function FileManager() {
     }
   }
 
-  const copyPath = async (relative: boolean) => {
-    if (!selected) return
-    const segs = [...segments, selected]
-    const abs =
-      handle.kind === 'electron' ? [handle.rootPath, ...segs].join('\\') : segs.join('/')
+  const copyPath = async (relative: boolean, segs = selected ? [...segments, selected] : null) => {
+    if (!segs?.length) return
+    const abs = handle.kind === 'electron' ? joinWinPath(handle.rootPath, segs) : segs.join('/')
     const text = relative ? segs.join('/') : abs
     try {
       await navigator.clipboard.writeText(text)
@@ -757,18 +760,27 @@ export function FileManager() {
                     sendToAgent(absOf([...c.segs, c.name]))
                   }}
                 >
-                  把路径插入当前 Agent
+                  把路径插入当前终端
                 </button>
                 <button
                   className="ctx-item"
                   onClick={() => {
                     const c = ctx
                     setCtx(null)
-                    void navigator.clipboard.writeText(absOf([...c.segs, c.name]))
-                    showToast('已复制路径', 'success')
+                    void copyPath(false, [...c.segs, c.name])
                   }}
                 >
-                  复制路径
+                  复制绝对路径
+                </button>
+                <button
+                  className="ctx-item"
+                  onClick={() => {
+                    const c = ctx
+                    setCtx(null)
+                    void copyPath(true, [...c.segs, c.name])
+                  }}
+                >
+                  复制相对路径
                 </button>
                 {handle.kind === 'electron' && (
                   <button

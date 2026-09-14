@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { appendAgentPreference, fitPinnedCount, moveAgentOrder, orderedAgents, visibleAgents } from './quickLaunch'
+import { appendAgentPreference, fitPinnedCount, moreListAgents, moveAgentOrder, orderedAgents, visibleAgents } from './quickLaunch'
 import type { AgentDef } from '@/types'
 
 function agent(id: string): AgentDef {
@@ -90,6 +90,14 @@ describe('quickLaunch', () => {
 
   it('allows hiding every agent', () => {
     expect(visibleAgents(agents, { hiddenAgentIds: agents.map((item) => item.id), agentOrder: [] })).toEqual([])
+  })
+
+  it('lists overflow when idle, and searches all visible agents', () => {
+    const overflow = [agents[4]!]
+    expect(moreListAgents(agents, overflow, 4, '').map((item) => item.id)).toEqual(['e'])
+    expect(moreListAgents(agents, overflow, 0, '').map((item) => item.id)).toEqual(['a', 'b', 'c', 'd', 'e'])
+    expect(moreListAgents(agents, overflow, 4, 'A').map((item) => item.id)).toEqual(['a'])
+    expect(moreListAgents(agents, overflow, 4, 'zzz')).toEqual([])
   })
 
   it('appends new agents visible at the end and does not inherit hidden', () => {

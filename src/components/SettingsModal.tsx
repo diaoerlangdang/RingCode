@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAppStore, uid } from '@/store/useAppStore'
 import { listAgents, seedProfilesFromAgents } from '@/lib/agents'
-import { isCloneAgent, cloneableSource } from '@/lib/agentFamily'
+import { isCloneAgent, isCloneFamily, cloneableSource } from '@/lib/agentFamily'
+import { CloneModelField } from '@/components/CloneModelField'
 import {
   createCloneAgent,
   createCloneProfile,
@@ -67,8 +68,24 @@ export function SettingsModal() {
     key: string
   } | null>(null)
   const [cloneBusy, setCloneBusy] = useState(false)
+  const [modelLists, setModelLists] = useState<Record<string, string[]>>({})
+  const [modelListBusyKey, setModelListBusyKey] = useState<string | null>(null)
+  const [modelListHint, setModelListHint] = useState<Record<string, string>>({})
   const [launcherById, setLauncherById] = useState<Record<string, { ok: boolean; path?: string; reason?: string }>>({})
   const [agentQuery, setAgentQuery] = useState('')
+  const [updateRuntime, setUpdateRuntime] = useState<{
+    currentVersion: string
+    channel: 'portable' | 'installer'
+    packaged: boolean
+  } | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const [updateResult, setUpdateResult] = useState<{
+    newer: boolean
+    message: string
+    releaseUrl: string
+    downloadUrl: string | null
+    latestVersion: string | null
+  } | null>(null)
 
   useEffect(() => {
     if (open && tab === 'profiles' && settingsProfileId) setEditingId(settingsProfileId)
@@ -94,6 +111,13 @@ export function SettingsModal() {
       if (isCloneAgent(agent)) void refreshLauncher(agent)
     }
   }, [open, tab, extra])
+
+  useEffect(() => {
+    if (!open || tab !== 'general') return
+    const api = window.ringcode
+    if (!api?.updateRuntime) return
+    void api.updateRuntime().then(setUpdateRuntime)
+  }, [open, tab])
 
   if (!open) return null
 
@@ -334,6 +358,42 @@ export function SettingsModal() {
     if (result && !result.ok) showToast(`Codex profile 未更新：${result.reason}`, 'error')
   }
 
+  const channelText = (channel?: 'portable' | 'installer') => (channel === 'installer' ? '安装版' : '免安装版')
+
+  const checkAppUpdate = async () => {
+    const api = window.ringcode
+    if (!api?.checkAppUpdate) {
+      showToast('检查更新仅桌面版可用', 'error')
+      return
+    }
+    setUpdateBusy(true)
+    try {
+      const result = await api.checkAppUpdate(true)
+      setUpdateRuntime({ currentVersion: result.currentVersion, channel: result.channel, packaged: result.packaged })
+      setUpdateResult({
+        newer: result.newer,
+        message: result.message,
+        releaseUrl: result.releaseUrl,
+        downloadUrl: result.downloadUrl,
+        latestVersion: result.latestVersion,
+      })
+      showToast(result.message, result.ok ? (result.newer ? 'info' : 'success') : 'error')
+    } finally {
+      setUpdateBusy(false)
+    }
+  }
+
+  const openMatchedUpdate = async (result: { releaseUrl: string; downloadUrl: string | null; latestVersion: string | null }) => {
+    const api = window.ringcode
+    const url = result.downloadUrl || result.releaseUrl
+    const ok = await api?.openUpdateUrl?.(url)
+    if (!ok) {
+      showToast('无法打开下载页', 'error')
+      return
+    }
+    if (result.latestVersion) patchSettings({ updateDismissedVersion: result.latestVersion })
+  }
+
   const refreshLauncher = async (agent: AgentDef) => {
     if (!isCloneAgent(agent) || !agent.commandName || !window.ringcode?.cloneLauncherStatus) return
     const status = await window.ringcode.cloneLauncherStatus({ cloneId: agent.id, commandName: agent.commandName })
@@ -366,6 +426,8 @@ export function SettingsModal() {
       showToast('只能从 Claude Code 或 Codex 原版复制分身', 'error')
       return
     }
+    setModelLists((current) => ({ ...current, draft: [] }))
+    setModelListHint((current) => ({ ...current, draft: '' }))
     setCloneDraft({
       sourceId: source.id,
       name: `${source.name} 分身`,
@@ -374,6 +436,49 @@ export function SettingsModal() {
       model: '',
       key: '',
     })
+  }
+
+  const fetchCloneModels = async (opts: {
+    cacheKey: string
+    family: string
+    baseUrl: string
+    apiKey?: string
+    credentialRef?: string
+  }) => {
+    const api = window.ringcode
+    if (!api?.cloneListModels) {
+      showToast('获取模型列表仅桌面版可用', 'error')
+      return
+    }
+    if (!isCloneFamily(opts.family)) {
+      showToast('只能为 Claude 或 Codex 分身获取模型', 'error')
+      return
+    }
+    if (!opts.apiKey?.trim() && !opts.credentialRef) {
+      showToast('请先填写 API Key', 'error')
+      return
+    }
+    setModelListBusyKey(opts.cacheKey)
+    setModelListHint((current) => ({ ...current, [opts.cacheKey]: '' }))
+    try {
+      const result = await api.cloneListModels({
+        family: opts.family,
+        baseUrl: opts.baseUrl,
+        apiKey: opts.apiKey,
+        credentialRef: opts.credentialRef,
+      })
+      if (!result.ok) {
+        setModelListHint((current) => ({ ...current, [opts.cacheKey]: result.reason }))
+        showToast(result.reason, 'error')
+        return
+      }
+      setModelLists((current) => ({ ...current, [opts.cacheKey]: result.models }))
+      const hint = `已获取 ${result.models.length} 个模型`
+      setModelListHint((current) => ({ ...current, [opts.cacheKey]: hint }))
+      showToast(hint, 'success')
+    } finally {
+      setModelListBusyKey((current) => (current === opts.cacheKey ? null : current))
+    }
   }
 
   const submitClone = async () => {
@@ -585,8 +690,26 @@ export function SettingsModal() {
             </div>
             <div className="settings-row" style={{ borderBottom: 'none' }}>
               <div>
-                <div className="label">关于</div>
-                <div className="desc">金刚琢 RingCode · v0.3.1 · 本地优先的 AI 辅助工作台</div>
+                <div className="label">关于与更新</div>
+                <div className="desc">
+                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.0'} · {channelText(updateRuntime?.channel)}
+                  {updateRuntime && !updateRuntime.packaged ? '（开发态按免安装提示）' : ''}
+                </div>
+                {updateResult && (
+                  <div className="desc" style={{ marginTop: 6 }}>
+                    {updateResult.message}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                <button className="btn" disabled={updateBusy} onClick={() => void checkAppUpdate()}>
+                  {updateBusy ? '检查中…' : '检查更新'}
+                </button>
+                {updateResult?.newer && (
+                  <button className="btn primary" onClick={() => void openMatchedUpdate(updateResult)}>
+                    {updateResult.downloadUrl ? `下载${channelText(updateRuntime?.channel)}` : '打开发布页'}
+                  </button>
+                )}
               </div>
             </div>
           </>
@@ -641,7 +764,7 @@ export function SettingsModal() {
                   参数
                   <input style={inputStyle} value={editing.args} onChange={(e) => patchProfile({ args: e.target.value })} placeholder='例如 --model sonnet' />
                 </label>
-                {editingAgent?.modelArgs?.length ? (
+                {editingAgent?.modelArgs?.length && !isCloneAgent(editingAgent) ? (
                   <>
                     <label className="settings-field">
                       模型策略
@@ -686,10 +809,40 @@ export function SettingsModal() {
                       <input
                         style={inputStyle}
                         value={editing.baseUrl ?? ''}
-                        onChange={(e) => patchProfile({ baseUrl: e.target.value })}
+                        onChange={(e) => {
+                          patchProfile({ baseUrl: e.target.value })
+                          setModelLists((current) => ({ ...current, [editing.tool]: [] }))
+                          setModelListHint((current) => ({ ...current, [editing.tool]: '' }))
+                        }}
                         placeholder="留空则走官方线路"
                       />
                     </label>
+                    <CloneModelField
+                      inputStyle={inputStyle}
+                      listId={`clone-models-${editing.tool}`}
+                      value={editing.model}
+                      models={modelLists[editing.tool] ?? []}
+                      busy={modelListBusyKey === editing.tool}
+                      hint={
+                        modelListHint[editing.tool] ||
+                        (!(setMap[editing.tool] ?? editing.credentialSet) ? '获取列表请先在「密钥」页保存 Key' : '')
+                      }
+                      fetchDisabled={!editing.credentialRef || !(setMap[editing.tool] ?? editing.credentialSet)}
+                      onChange={(model) =>
+                        patchProfile({
+                          model,
+                          modelMode: model.trim() ? 'custom' : 'default',
+                        })
+                      }
+                      onFetch={() =>
+                        void fetchCloneModels({
+                          cacheKey: editing.tool,
+                          family: editingAgent.sourceFamily,
+                          baseUrl: editing.baseUrl ?? '',
+                          credentialRef: editing.credentialRef,
+                        })
+                      }
+                    />
                   </>
                 )}
                 <label className="settings-field">
@@ -944,16 +1097,39 @@ export function SettingsModal() {
                 </label>
                 <label className="settings-field">
                   API URL（选填）
-                  <input style={inputStyle} value={cloneDraft.url} onChange={(e) => setCloneDraft({ ...cloneDraft, url: e.target.value })} placeholder="留空则走官方线路" />
-                </label>
-                <label className="settings-field">
-                  模型（选填）
-                  <input style={inputStyle} value={cloneDraft.model} onChange={(e) => setCloneDraft({ ...cloneDraft, model: e.target.value })} placeholder="留空则跟随 CLI 默认" />
+                  <input
+                    style={inputStyle}
+                    value={cloneDraft.url}
+                    onChange={(e) => {
+                      setCloneDraft({ ...cloneDraft, url: e.target.value })
+                      setModelLists((current) => ({ ...current, draft: [] }))
+                      setModelListHint((current) => ({ ...current, draft: '' }))
+                    }}
+                    placeholder="留空则走官方线路"
+                  />
                 </label>
                 <label className="settings-field">
                   API Key（选填）
-                  <input type="password" style={inputStyle} value={cloneDraft.key} onChange={(e) => setCloneDraft({ ...cloneDraft, key: e.target.value })} placeholder="可后补" />
+                  <input type="password" style={inputStyle} value={cloneDraft.key} onChange={(e) => setCloneDraft({ ...cloneDraft, key: e.target.value })} placeholder="可后补；获取模型列表需要 Key" />
                 </label>
+                <CloneModelField
+                  inputStyle={inputStyle}
+                  listId="clone-models-draft"
+                  value={cloneDraft.model}
+                  models={modelLists.draft ?? []}
+                  busy={modelListBusyKey === 'draft'}
+                  hint={modelListHint.draft || (!cloneDraft.key.trim() ? '获取列表请先填写 API Key' : '')}
+                  fetchDisabled={!cloneDraft.key.trim()}
+                  onChange={(model) => setCloneDraft({ ...cloneDraft, model })}
+                  onFetch={() =>
+                    void fetchCloneModels({
+                      cacheKey: 'draft',
+                      family: cloneDraft.sourceId,
+                      baseUrl: cloneDraft.url,
+                      apiKey: cloneDraft.key,
+                    })
+                  }
+                />
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button className="btn primary" disabled={cloneBusy} onClick={() => void submitClone()}>
                     {cloneBusy ? '创建中…' : '创建分身'}

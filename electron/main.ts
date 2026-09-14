@@ -17,8 +17,10 @@ import { registerWatchHandlers, disposeWatcher } from './watch'
 import { registerOwnedResourceHandlers } from './ownedResources'
 import { registerCodexOverlayHandlers } from './codexOverlayWrite'
 import { registerCloneResourceHandlers } from './cloneResources'
+import { registerCloneModelHandlers } from './cloneModels'
+import { registerAppUpdateHandlers } from './appUpdateIpc'
 import { writeAppLaunchPointer, type AppLaunchPointer } from './cloneLauncherFile'
-import { addAllowedRoot, resolveSafe, setAllowedRoots, isUnderAllowedRoot } from './pathSafe'
+import { addAllowedRoot, isSelfOrInside, isUnderAllowedRoot, resolveSafe, setAllowedRoots } from './pathSafe'
 import { isAllowedExternalUrl } from './urlSafe'
 
 const DEV_SERVER_URL = process.env.VITE_DEV_SERVER_URL
@@ -242,6 +244,16 @@ ipcMain.handle('fs:copy', async (_e, rootPath: string, segments: string[], destN
   await fsp.copyFile(src, dest)
 })
 
+async function pathExists(file: string): Promise<boolean> {
+  try {
+    await fsp.stat(file)
+    return true
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') return false
+    throw err
+  }
+}
+
 /** 复制文件/文件夹（递归）到目标目录（destSegments 为目标完整路径，含名称）。源/目标可跨已登记根。 */
 ipcMain.handle(
   'fs:copyTo',
@@ -249,7 +261,8 @@ ipcMain.handle(
     const src = resolveSafe(rootPath, srcSegments ?? [])
     const dest = resolveSafe(destRootPath ?? rootPath, destSegments ?? [])
     if (isSelfOrInside(dest, src)) throw new Error('不能复制到自身或其子目录内')
-    await fsp.cp(src, dest, { recursive: true })
+    if (await pathExists(dest)) throw new Error('目标已存在')
+    await fsp.cp(src, dest, { recursive: true, errorOnExist: true })
   },
 )
 
@@ -260,25 +273,25 @@ ipcMain.handle(
     const src = resolveSafe(rootPath, srcSegments ?? [])
     const dest = resolveSafe(destRootPath ?? rootPath, destSegments ?? [])
     if (isSelfOrInside(dest, src)) throw new Error('不能移动到自身或其子目录内')
+    if (await pathExists(dest)) throw new Error('目标已存在')
     try {
       await fsp.rename(src, dest)
     } catch (e) {
-      if ((e as NodeJS.ErrnoException).code === 'EXDEV') {
-        await fsp.cp(src, dest, { recursive: true })
+      if ((e as NodeJS.ErrnoException).code !== 'EXDEV') throw e
+      await fsp.cp(src, dest, { recursive: true, errorOnExist: true })
+      try {
+        await fsp.stat(dest)
+      } catch {
+        throw new Error('跨盘移动失败：目标未完整写入，已保留源文件')
+      }
+      try {
         await fsp.rm(src, { recursive: true, force: true })
-      } else {
-        throw e
+      } catch (err) {
+        throw new Error(`已复制到目标，但未能删除源：${err instanceof Error ? err.message : String(err)}`)
       }
     }
   },
 )
-
-/** dest 是否等于 target 或位于 target 内部（用于禁止把目录复制/移动到自身内部） */
-function isSelfOrInside(dest: string, target: string): boolean {
-  if (dest === target) return true
-  const withSep = target.endsWith(path.sep) ? target : target + path.sep
-  return dest.startsWith(withSep)
-}
 
 ipcMain.handle('dialog:openExe', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
@@ -334,6 +347,7 @@ if (!hasSingleInstanceLock) {
     registerOwnedResourceHandlers()
     registerCodexOverlayHandlers()
     registerCloneResourceHandlers(currentAppLaunchPointer)
+    registerCloneModelHandlers()
     writeAppLaunchPointer(currentAppLaunchPointer())
     registerDbHandlers()
     registerEnvHandlers()
@@ -342,6 +356,7 @@ if (!hasSingleInstanceLock) {
     registerSearchHandlers()
     registerHistoryHandlers()
     registerWatchHandlers()
+    registerAppUpdateHandlers()
     createWindow()
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow()

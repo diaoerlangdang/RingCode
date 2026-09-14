@@ -52,6 +52,17 @@ export function assertAllowedCwd(cwd: string): string {
 }
 
 /** 把 rootPath + segments 解析为绝对路径，禁止绝对分段和越界 */
+/** dest 是否等于 target，或位于 target 内部。Windows 比较忽略盘符与路径大小写。 */
+export function isSelfOrInside(dest: string, target: string, platform: NodeJS.Platform = process.platform): boolean {
+  const destAbs = path.resolve(dest)
+  const targetAbs = path.resolve(target)
+  const destKey = platform === 'win32' ? destAbs.toLowerCase() : destAbs
+  const targetKey = platform === 'win32' ? targetAbs.toLowerCase() : targetAbs
+  if (destKey === targetKey) return true
+  const withSep = targetKey.endsWith(path.sep) ? targetKey : targetKey + path.sep
+  return destKey.startsWith(withSep)
+}
+
 export function resolveSafe(rootPath: string, segments: string[]): string {
   if (!rootPath) throw new Error('未打开工作区')
   const segs = segments ?? []

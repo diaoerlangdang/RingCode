@@ -30,6 +30,8 @@ function deleteOwnedPath(file: string, cloneId: string, kind: OwnedResource['kin
           ? launcherOwnedBy(content, cloneId)
           : kind === 'snapshot'
             ? content.includes(`"cloneId": "${cloneId}"`) || content.includes(`"cloneId":"${cloneId}"`)
+            : kind === 'claudeSettings'
+              ? file.replace(/\\/g, '/').includes('/claude-settings/') && file.endsWith(`${cloneId}.json`)
             : content.includes(LAUNCHER_MARKER)
     if (!owned) return { kind, target: file, ok: false, reason: '文件不属于本应用，已跳过' }
     fs.unlinkSync(file)

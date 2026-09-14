@@ -32,6 +32,12 @@ const api = {
   cloneClearKey: (cloneId: string) => ipcRenderer.invoke('clone:clearKey', cloneId),
   cloneClearAll: () => ipcRenderer.invoke('clone:clearAll'),
   cloneRunning: (cloneId?: string) => ipcRenderer.invoke('clone:running', cloneId),
+  cloneListModels: (input: {
+    family: 'claude' | 'codex'
+    baseUrl?: string
+    apiKey?: string
+    credentialRef?: string
+  }) => ipcRenderer.invoke('clone:listModels', input),
   // 本地数据库（主进程 better-sqlite3）
   storeGet: (key: string): Promise<string | null> => ipcRenderer.invoke('store:get', key),
   storeSet: (key: string, value: string): Promise<void> => ipcRenderer.invoke('store:set', key, value),
@@ -126,6 +132,9 @@ const api = {
     ipcRenderer.invoke('history:readSessionPage', tool, sessionId, before),
   historyReadFilePage: (file: string, before?: number) =>
     ipcRenderer.invoke('history:readFilePage', file, before),
+  updateRuntime: () => ipcRenderer.invoke('update:runtime'),
+  checkAppUpdate: (force?: boolean) => ipcRenderer.invoke('update:check', force === true),
+  openUpdateUrl: (url: string) => ipcRenderer.invoke('update:open', url),
 }
 
 contextBridge.exposeInMainWorld('ringcode', api)

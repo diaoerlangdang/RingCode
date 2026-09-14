@@ -31,3 +31,7 @@ export function cloneSnapshotPath(cloneId: string, home = os.homedir()): string 
 export function cloneLauncherPath(commandName: string, home = os.homedir()): string {
   return path.join(ringcodeBinDir(home), `${commandName}.cmd`)
 }
+
+export function claudeSettingsPath(cloneId: string, home = os.homedir()): string {
+  return path.join(ringcodeHome(home), 'claude-settings', `${cloneId}.json`)
+}

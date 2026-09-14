@@ -129,6 +129,21 @@ export default function App() {
     if (!st.settings.firstRunDone) st.setWizardOpen(true)
   }, [])
 
+  // 启动后后台检查 GitHub Release；不阻塞，不自动安装。同一版本只提示一次。
+  useEffect(() => {
+    const api = window.ringcode
+    if (!api?.checkAppUpdate) return
+    const timer = window.setTimeout(() => {
+      void api.checkAppUpdate(false).then((result) => {
+        if (!result.newer || !result.latestVersion) return
+        const dismissed = useAppStore.getState().settings.updateDismissedVersion
+        if (dismissed === result.latestVersion) return
+        useAppStore.getState().showToast(result.message, 'info')
+      })
+    }, 8000)
+    return () => window.clearTimeout(timer)
+  }, [])
+
   // 启动时以系统凭据库为准回填 credentialSet（CFG-003/006，§9.5）
   // 持久化里的 credentialSet 可能与凭据管理器实际状态不一致（如外部清除/迁移），此处权威校正
   useEffect(() => {

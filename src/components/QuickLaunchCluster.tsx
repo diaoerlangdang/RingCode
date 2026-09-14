@@ -4,7 +4,7 @@ import { listAgents } from '@/lib/agents'
 import { isCloneAgent } from '@/lib/agentFamily'
 import { DEFAULT_KEYMAP } from '@/lib/keymap'
 import { runCommand } from '@/lib/commands'
-import { fitPinnedCount, visibleAgents } from '@/lib/quickLaunch'
+import { fitPinnedCount, moreListAgents, visibleAgents } from '@/lib/quickLaunch'
 import type { AgentDef } from '@/types'
 
 function shortcutOf(agent: AgentDef, keymap?: Record<string, string>): string | undefined {
@@ -33,6 +33,7 @@ export function QuickLaunchCluster({ onManage }: { onManage: () => void }) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [activeIndex, setActiveIndex] = useState(0)
+  const [panelPos, setPanelPos] = useState<{ top: number; right: number } | null>(null)
 
   useLayoutEffect(() => {
     const cluster = clusterRef.current
@@ -80,11 +81,7 @@ export function QuickLaunchCluster({ onManage }: { onManage: () => void }) {
   const showMore = overflow.length > 0 || pinned === 0
   const moreItems = pinned === 0 ? visible : overflow
   const moreLabel = pinned === 0 ? '启动 Agent' : `更多（${overflow.length}）`
-  const filtered = moreItems.filter((agent) => {
-    const q = query.trim().toLowerCase()
-    if (!q) return true
-    return `${agent.name}\n${agent.command}\n${agent.commandName ?? ''}\n${agent.sourceFamily ?? ''}`.toLowerCase().includes(q)
-  })
+  const filtered = moreListAgents(visible, overflow, pinned, query)
 
   useEffect(() => {
     if (!open) return
@@ -106,6 +103,23 @@ export function QuickLaunchCluster({ onManage }: { onManage: () => void }) {
       window.removeEventListener('keydown', onKey)
     }
   }, [open])
+
+  useLayoutEffect(() => {
+    if (!open) return
+    const place = () => {
+      const btn = moreBtnRef.current
+      if (!btn) return
+      const rect = btn.getBoundingClientRect()
+      setPanelPos({ top: Math.round(rect.bottom + 6), right: Math.round(window.innerWidth - rect.right) })
+    }
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [open, moreLabel])
 
   useEffect(() => {
     if (open) {
@@ -174,14 +188,19 @@ export function QuickLaunchCluster({ onManage }: { onManage: () => void }) {
             {moreLabel} ▾
           </button>
           {open ? (
-            <div className="quick-more-panel" role="listbox" aria-label={moreLabel}>
+            <div
+              className="quick-more-panel"
+              role="listbox"
+              aria-label={moreLabel}
+              style={panelPos ? { top: panelPos.top, right: panelPos.right } : undefined}
+            >
               <div className="search-box">
                 <span aria-hidden="true">⌕</span>
                 <input
                   ref={searchRef}
                   value={query}
                   aria-label="搜索可启动的 Agent"
-                  placeholder="搜索显示名 / 命令名"
+                  placeholder="搜索全部可见入口"
                   onChange={(event) => {
                     setQuery(event.target.value)
                     setActiveIndex(0)
@@ -202,6 +221,9 @@ export function QuickLaunchCluster({ onManage }: { onManage: () => void }) {
                 />
               </div>
               <div className="quick-more-list">
+                {pinned > 0 && !query.trim() ? (
+                  <div className="quick-more-hint">未钉在顶栏的 {overflow.length} 个入口，输入可搜顶栏上的</div>
+                ) : null}
                 {filtered.length ? (
                   filtered.map((agent, index) => {
                     const missing = isCloneAgent(agent) && !profiles.find((profile) => profile.tool === agent.id)?.credentialSet

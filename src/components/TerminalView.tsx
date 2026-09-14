@@ -229,6 +229,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
             extraEnv: resolved?.envPlan.extraEnv,
             cloneId: resolved?.requireCredential ? terminal.tool : undefined,
             codexOverlay: resolved?.overlay,
+            claudeSettings: resolved?.claudeSettings,
           })
           if (!ptyId || disposed) return
           commitLaunchEntry()
