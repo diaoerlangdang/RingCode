@@ -225,6 +225,32 @@ export async function copyEntry(handle: DirHandle, segments: string[], destName:
   throw new Error('当前环境不支持复制')
 }
 
+/** 复制文件/文件夹（递归）到任意目标目录（destSegments 为完整目标路径，含名称）。仅 Electron。 */
+export async function copyEntryTo(
+  srcHandle: DirHandle,
+  srcSegments: string[],
+  destHandle: DirHandle,
+  destSegments: string[],
+): Promise<void> {
+  if (srcHandle.kind !== 'electron' || destHandle.kind !== 'electron' || !srcHandle.rootPath || !destHandle.rootPath) {
+    throw new Error('当前环境不支持复制')
+  }
+  return el().fsCopyTo(srcHandle.rootPath, srcSegments, destHandle.rootPath, destSegments)
+}
+
+/** 移动（剪切粘贴）文件/文件夹到任意目标目录。仅 Electron。 */
+export async function moveEntryTo(
+  srcHandle: DirHandle,
+  srcSegments: string[],
+  destHandle: DirHandle,
+  destSegments: string[],
+): Promise<void> {
+  if (srcHandle.kind !== 'electron' || destHandle.kind !== 'electron' || !srcHandle.rootPath || !destHandle.rootPath) {
+    throw new Error('当前环境不支持移动')
+  }
+  return el().fsMoveTo(srcHandle.rootPath, srcSegments, destHandle.rootPath, destSegments)
+}
+
 export async function statEntry(
   handle: DirHandle,
   segments: string[],

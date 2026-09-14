@@ -242,6 +242,44 @@ ipcMain.handle('fs:copy', async (_e, rootPath: string, segments: string[], destN
   await fsp.copyFile(src, dest)
 })
 
+/** 复制文件/文件夹（递归）到目标目录（destSegments 为目标完整路径，含名称）。源/目标可跨已登记根。 */
+ipcMain.handle(
+  'fs:copyTo',
+  async (_e, rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) => {
+    const src = resolveSafe(rootPath, srcSegments ?? [])
+    const dest = resolveSafe(destRootPath ?? rootPath, destSegments ?? [])
+    if (isSelfOrInside(dest, src)) throw new Error('不能复制到自身或其子目录内')
+    await fsp.cp(src, dest, { recursive: true })
+  },
+)
+
+/** 移动（剪切粘贴）文件/文件夹到目标目录。同盘用 rename，跨盘回退为递归复制后删源。 */
+ipcMain.handle(
+  'fs:moveTo',
+  async (_e, rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) => {
+    const src = resolveSafe(rootPath, srcSegments ?? [])
+    const dest = resolveSafe(destRootPath ?? rootPath, destSegments ?? [])
+    if (isSelfOrInside(dest, src)) throw new Error('不能移动到自身或其子目录内')
+    try {
+      await fsp.rename(src, dest)
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === 'EXDEV') {
+        await fsp.cp(src, dest, { recursive: true })
+        await fsp.rm(src, { recursive: true, force: true })
+      } else {
+        throw e
+      }
+    }
+  },
+)
+
+/** dest 是否等于 target 或位于 target 内部（用于禁止把目录复制/移动到自身内部） */
+function isSelfOrInside(dest: string, target: string): boolean {
+  if (dest === target) return true
+  const withSep = target.endsWith(path.sep) ? target : target + path.sep
+  return dest.startsWith(withSep)
+}
+
 ipcMain.handle('dialog:openExe', async () => {
   const result = await dialog.showOpenDialog(mainWindow!, {
     properties: ['openFile'],

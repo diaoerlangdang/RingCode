@@ -4,7 +4,8 @@ import { runCommand } from '@/lib/commands'
 import { DEFAULT_KEYMAP, matchShortcut } from '@/lib/keymap'
 import { listAgents } from '@/lib/agents'
 
-function isTypingTarget(t: EventTarget | null): boolean {
+/** 焦点在输入框 / Monaco 编辑器 / 终端内时，单键类快捷键让位（文件管理器快捷键等复用） */
+export function isTypingTarget(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null
   if (!el) return false
   if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable) return true
