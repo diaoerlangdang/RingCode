@@ -22,6 +22,16 @@ const api = {
   credSet: (key: string, val: string): Promise<boolean> => ipcRenderer.invoke('cred:set', key, val),
   credHas: (key: string): Promise<boolean> => ipcRenderer.invoke('cred:has', key),
   credDelete: (key: string): Promise<boolean> => ipcRenderer.invoke('cred:delete', key),
+  registerOwnedResource: (item: unknown): Promise<boolean> => ipcRenderer.invoke('resources:register', item),
+  writeCodexOverlay: (input: unknown): Promise<{ ok: true; path: string } | { ok: false; reason: string }> =>
+    ipcRenderer.invoke('codex:writeOverlay', input),
+  cloneSync: (input: unknown) => ipcRenderer.invoke('clone:sync', input),
+  cloneLauncherStatus: (input: unknown) => ipcRenderer.invoke('clone:launcherStatus', input),
+  cloneOpenBin: () => ipcRenderer.invoke('clone:openBin'),
+  cloneDelete: (cloneId: string) => ipcRenderer.invoke('clone:delete', cloneId),
+  cloneClearKey: (cloneId: string) => ipcRenderer.invoke('clone:clearKey', cloneId),
+  cloneClearAll: () => ipcRenderer.invoke('clone:clearAll'),
+  cloneRunning: (cloneId?: string) => ipcRenderer.invoke('clone:running', cloneId),
   // 本地数据库（主进程 better-sqlite3）
   storeGet: (key: string): Promise<string | null> => ipcRenderer.invoke('store:get', key),
   storeSet: (key: string, value: string): Promise<void> => ipcRenderer.invoke('store:set', key, value),

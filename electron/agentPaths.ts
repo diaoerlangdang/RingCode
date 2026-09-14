@@ -1,10 +1,34 @@
+import * as fs from 'node:fs'
 import * as path from 'node:path'
 
+function tryListDir(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir, { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => entry.name)
+  } catch {
+    return []
+  }
+}
+
 /** CLI 安装器已公开、但当前桌面进程 PATH 可能尚未刷新的 Windows 用户级目录。 */
-export function knownWindowsAgentPaths(exe: string, env: NodeJS.ProcessEnv = process.env): string[] {
+export function knownWindowsAgentPaths(
+  exe: string,
+  env: NodeJS.ProcessEnv = process.env,
+  listDir: (dir: string) => string[] = tryListDir,
+): string[] {
   if (process.platform !== 'win32') return []
   const name = path.basename(exe).toLowerCase().replace(/\.exe$/, '')
   if (name === 'agy' && env.LOCALAPPDATA) return [path.join(env.LOCALAPPDATA, 'agy', 'bin', 'agy.exe')]
+  if (name === 'codex') {
+    const out: string[] = []
+    if (env.CODEX_CLI_PATH) out.push(env.CODEX_CLI_PATH)
+    const binRoot = env.LOCALAPPDATA ? path.join(env.LOCALAPPDATA, 'OpenAI', 'Codex', 'bin') : ''
+    if (binRoot) {
+      for (const entry of listDir(binRoot)) {
+        out.push(path.join(binRoot, entry, 'codex.exe'))
+      }
+    }
+    return [...new Set(out)]
+  }
   if (name !== 'opencode') return []
 
   const candidates = [

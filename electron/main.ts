@@ -14,6 +14,10 @@ import { registerSkillHandlers } from './skills'
 import { registerSearchHandlers } from './search'
 import { registerHistoryHandlers } from './history'
 import { registerWatchHandlers, disposeWatcher } from './watch'
+import { registerOwnedResourceHandlers } from './ownedResources'
+import { registerCodexOverlayHandlers } from './codexOverlayWrite'
+import { registerCloneResourceHandlers } from './cloneResources'
+import { writeAppLaunchPointer, type AppLaunchPointer } from './cloneLauncherFile'
 import { addAllowedRoot, resolveSafe, setAllowedRoots, isUnderAllowedRoot } from './pathSafe'
 import { isAllowedExternalUrl } from './urlSafe'
 
@@ -22,6 +26,13 @@ const isDev = !!DEV_SERVER_URL
 
 if (process.env.RINGCODE_USER_DATA_DIR) {
   app.setPath('userData', process.env.RINGCODE_USER_DATA_DIR)
+}
+
+function currentAppLaunchPointer(): AppLaunchPointer {
+  return {
+    exe: process.execPath,
+    script: path.join(app.getAppPath(), 'electron-dist', 'cloneLaunchCli.js'),
+  }
 }
 
 let mainWindow: BrowserWindow | null = null
@@ -282,6 +293,10 @@ if (!hasSingleInstanceLock) {
     if (process.platform === 'win32') app.setAppUserModelId('com.ringcode.app')
     registerPtyHandlers()
     registerCredHandlers()
+    registerOwnedResourceHandlers()
+    registerCodexOverlayHandlers()
+    registerCloneResourceHandlers(currentAppLaunchPointer)
+    writeAppLaunchPointer(currentAppLaunchPointer())
     registerDbHandlers()
     registerEnvHandlers()
     registerGitHandlers()

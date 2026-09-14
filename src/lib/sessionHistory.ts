@@ -29,7 +29,7 @@ export function findHistoryLinks(
       .filter(
         (m) =>
           !usedNativeIds.has(m.sessionId) &&
-          m.tool === session.tool &&
+          m.tool === (session.family || session.tool) &&
           samePath(m.projectPath, session.cwd) &&
           Math.abs(m.startedAt - session.createdAt) <= maxStartDelta,
       )
@@ -56,7 +56,7 @@ export function syncNativeHistoryTitles(
   const seen = new Set(out.map((item) => item.sessionId))
   for (const session of sessions) {
     if (seen.has(session.id) || !session.nativeSessionId || session.autoTitled === false) continue
-    const match = matches.find((item) => item.tool === session.tool && item.sessionId === session.nativeSessionId)
+    const match = matches.find((item) => item.tool === (session.family || session.tool) && item.sessionId === session.nativeSessionId)
     if (!match?.title.trim()) continue
     out.push({ sessionId: session.id, nativeSessionId: match.sessionId, nativeTitle: match.title })
   }

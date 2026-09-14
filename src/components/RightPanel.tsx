@@ -1,11 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { agentById, agentLabel, listAgents, supportsNativeFork } from '@/lib/agents'
-import { prepareAgentLaunch } from '@/lib/agentLaunch'
+import { isCloneAgent, usesCurrentEntryConfig } from '@/lib/agentFamily'
+import { CloneEntrySelect } from '@/components/CloneEntrySelect'
+import {
+  activeTerminalForSession,
+  agentsInFamily,
+  continueEntryHint,
+  historyLaunchLockKey,
+  pickLinkedSession,
+  resolveCloneEntry,
+} from '@/lib/cloneEntry'
+import { prepareCurrentEntryLaunch } from '@/lib/entryLaunch'
+import { lookupHistoryAlias } from '@/lib/historyIdentity'
+import { beginLaunchAttempt } from '@/lib/launchAttempts'
+import { acquireLaunchLock, releaseLaunchLock } from '@/lib/launchLock'
 import { cleanTranscript, displayTitle } from '@/lib/sessionText'
 import {
   buildBranchContext,
-  historyAliasKey,
   historyFallbackText,
   parseHistoryMessages,
   syncNativeHistoryTitles,
@@ -26,7 +38,6 @@ import type {
   AgentDef,
   HistoryDirectoryGroup,
   HistoryMatch,
-  PermissionChoice,
   Session,
   SessionStatus,
   ToolType,
@@ -132,7 +143,6 @@ export function RightPanel() {
   const workspaces = useAppStore((s) => s.workspaces)
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
   const terminals = useAppStore((s) => s.terminals)
-  const setActiveTerminal = useAppStore((s) => s.setActiveTerminal)
   const showToast = useAppStore((s) => s.showToast)
   const newTerminal = useAppStore((s) => s.newTerminal)
   const togglePanel = useAppStore((s) => s.togglePanel)
@@ -166,6 +176,7 @@ export function RightPanel() {
     disk: Record<string, boolean>
   }>({ local: {}, disk: {} })
   const [selectedDiskFile, setSelectedDiskFile] = useState<string | null>(null)
+  const [entryOverride, setEntryOverride] = useState<Record<string, string>>({})
   const [detail, setDetail] = useState<HistoryRef | null>(null)
   const [menu, setMenu] = useState<ContextMenu | null>(null)
   const historyListRef = useRef<HTMLDivElement>(null)
@@ -185,13 +196,14 @@ export function RightPanel() {
         getId: (session) => session.id,
         getDirectory: (session) => session.cwd,
         getUpdatedAt: (session) => session.lastActiveAt,
-        getTool: (session) => session.tool,
-        getSearchText: (session) => `${session.title}\n${cleanTranscript(session.transcript)}`,
+        getTool: (session) => session.family || session.tool,
+        getSearchText: (session) =>
+          `${session.title}\n${cleanTranscript(session.transcript)}\n${agentLabel(session.family || session.tool, extra)}\n${agentLabel(session.lastCloneId || session.tool, extra)}`,
         activeWorkspacePath,
         query,
         tool: toolFilter,
       }),
-    [sessions, activeWorkspacePath, query, toolFilter],
+    [sessions, activeWorkspacePath, query, toolFilter, extra],
   )
 
   const allLocalGroups = useMemo(
@@ -200,11 +212,12 @@ export function RightPanel() {
         getId: (session) => session.id,
         getDirectory: (session) => session.cwd,
         getUpdatedAt: (session) => session.lastActiveAt,
-        getTool: (session) => session.tool,
-        getSearchText: (session) => `${session.title}\n${cleanTranscript(session.transcript)}`,
+        getTool: (session) => session.family || session.tool,
+        getSearchText: (session) =>
+          `${session.title}\n${cleanTranscript(session.transcript)}\n${agentLabel(session.family || session.tool, extra)}\n${agentLabel(session.lastCloneId || session.tool, extra)}`,
         activeWorkspacePath,
       }),
-    [sessions, activeWorkspacePath],
+    [sessions, activeWorkspacePath, extra],
   )
 
   const diskGroups = useMemo(
@@ -413,11 +426,10 @@ export function RightPanel() {
     return () => window.removeEventListener('keydown', onKey)
   }, [menu])
 
-  const linkedSession = (match: HistoryMatch) =>
-    sessions.find((session) => session.tool === match.tool && session.nativeSessionId === match.sessionId)
+  const linkedSession = (match: HistoryMatch) => pickLinkedSession(sessions, terminals, match)
 
   const titleForDisk = (match: HistoryMatch) =>
-    displayTitle(historyAliases[historyAliasKey(match.tool, match.sessionId)] ?? match.title, match.snippet)
+    displayTitle(lookupHistoryAlias(historyAliases, match.tool, match.sessionId, extra) ?? match.title, match.snippet)
 
   const sessionForRef = (ref: HistoryRef): Session | undefined =>
     ref.kind === 'local' ? sessions.find((session) => session.id === ref.sessionId) : linkedSession(ref.match)
@@ -430,6 +442,40 @@ export function RightPanel() {
 
   const canResumeRef = (ref: HistoryRef): boolean =>
     ref.kind === 'disk' ? !!ref.match.sessionId : !!sessionForRef(ref)?.nativeSessionId
+
+  const historyRefKey = (ref: HistoryRef): string =>
+    ref.kind === 'local' ? `local:${ref.sessionId}` : `disk:${ref.match.sessionId}`
+
+  const resolveRefEntry = (ref: HistoryRef) => {
+    const override = entryOverride[historyRefKey(ref)]
+    if (ref.kind === 'disk') {
+      const linked = linkedSession(ref.match)
+      return resolveCloneEntry({
+        tool: linked?.tool || ref.match.tool,
+        family: linked?.family || ref.match.tool,
+        lastCloneId: linked?.lastCloneId,
+        preferredEntryId: override,
+        extra,
+        diskUnlinked: !linked,
+      })
+    }
+    const session = sessions.find((item) => item.id === ref.sessionId)
+    if (!session) return resolveCloneEntry({ tool: '', extra })
+    return resolveCloneEntry({
+      tool: session.tool,
+      family: session.family,
+      lastCloneId: session.lastCloneId,
+      preferredEntryId: override,
+      extra,
+    })
+  }
+
+  const cloneEntryMissingKey = (agentId: string): boolean => {
+    const agent = agentById(agentId, extra)
+    if (!isCloneAgent(agent)) return false
+    const profile = profiles.find((item) => item.tool === agentId)
+    return !profile?.credentialSet
+  }
 
   const showBottom = () => {
     if (layout.bottomHidden) togglePanel('bottom')
@@ -467,146 +513,168 @@ export function RightPanel() {
     return { cwd, workspaceId: created.id }
   }
 
-  const prepareLaunch = async (
-    tool: string,
-    cwd: string,
-    workspaceId: string,
-    preferredProfileId?: string,
-    savedPermission?: PermissionChoice,
-  ): Promise<{ profileId: string; permission?: PermissionChoice } | null> => {
+  const activateExisting = (session: Session) => {
     const app = useAppStore.getState()
-    const api = window.ringcode
-    const agent = agentById(tool, app.settings.customAgents ?? []) ?? { id: tool }
-    const preferred = preferredProfileId ? app.getProfile(preferredProfileId) : undefined
-    const profile = preferred ?? app.getProfileForTool(tool, workspaceId)
-    const prepared = await prepareAgentLaunch(
-      {
-        agent,
-        workspace: { path: cwd },
-        profile,
-        permissionByAgent: app.settings.launchPermissionByAgent ?? {},
-        runtimeAvailable: !!api,
-      },
-      (command) => api!.envWhich(command),
-    )
-    if (!prepared.ok) {
-      if (prepared.openSettings) app.openSettings('profiles', profile?.id)
-      if (prepared.reason === 'profile') app.showToast(`请先配置 ${agentLabel(tool, extra)} 的启动方案`, 'error')
-      else if (prepared.reason === 'executable') app.showToast(`未找到 ${profile?.command || tool}`, 'error')
-      else app.showToast('当前环境无法启动本地 CLI', 'error')
-      return null
-    }
-    return { profileId: prepared.profileId, permission: savedPermission ?? prepared.permission }
+    const live = activeTerminalForSession(app.terminals, session.id)
+    if (!live) return false
+    app.setActiveTerminal(live.id)
+    app.setActiveSession(session.id)
+    showBottom()
+    showToast('该会话已在运行，已切换到现有终端', 'info')
+    return true
   }
 
-  const resumeLocal = async (session: Session) => {
+  const resumeLocal = async (session: Session, preferredEntryId?: string) => {
     if (!session.nativeSessionId) {
       showToast('该本地记录没有原生 session ID，不能继续原会话', 'error')
       return
     }
-    const runningTerminal = session.status === 'running'
-      ? terminals.find((terminal) => terminal.sessionId === session.id && !terminal.orphaned)
-      : undefined
-    if (runningTerminal) {
-      setActiveTerminal(runningTerminal.id)
-      setActiveSession(session.id)
-      showBottom()
-      showToast('该会话已在运行，已切换到现有终端', 'info')
+    if (activateExisting(session)) return
+
+    const extraAgents = useAppStore.getState().settings.customAgents ?? []
+    const resolution = resolveCloneEntry({
+      tool: session.tool,
+      family: session.family,
+      lastCloneId: session.lastCloneId,
+      preferredEntryId,
+      extra: extraAgents,
+    })
+    const lockKey = historyLaunchLockKey({
+      nativeSessionId: session.nativeSessionId,
+      sessionId: session.id,
+      family: resolution.family,
+      tool: session.tool,
+    })
+    if (!acquireLaunchLock(lockKey)) {
+      showToast('正在启动，请稍候', 'info')
       return
     }
+    try {
+      if (activateExisting(session)) return
+      const workspace = await selectWorkspacePath(session.cwd)
+      if (!workspace) return
+      const launch = await prepareCurrentEntryLaunch(resolution.agentId, workspace.cwd, workspace.workspaceId)
+      if (!launch) return
+      if (activateExisting(session)) return
 
-    const workspace = await selectWorkspacePath(session.cwd)
-    if (!workspace) return
-    const launch = await prepareLaunch(
-      session.tool,
-      workspace.cwd,
-      workspace.workspaceId,
-      session.profileId,
-      session.launchPermission,
-    )
-    if (!launch) return
-
-    useAppStore.setState((state) => ({
-      sessions: state.sessions.map((item) =>
-        item.id === session.id
-          ? {
-              ...item,
-              cwd: workspace.cwd,
-              workspaceId: workspace.workspaceId,
-              profileId: launch.profileId,
-              launchPermission: launch.permission,
-              status: 'running',
-              endedAt: undefined,
-              lastActiveAt: Date.now(),
-            }
-          : item,
-      ),
-      activeSessionId: session.id,
-    }))
-    newTerminal('ai', {
-      tool: session.tool,
-      sessionId: session.id,
-      action: 'resume',
-      sourceNativeSessionId: session.nativeSessionId,
-      permission: launch.permission,
-      title: `${agentLabel(session.tool, extra)} · 继续`,
-    })
-    showBottom()
-    showToast(`正在继续：${displayTitle(session.title, session.transcript)}`, 'info')
+      const attemptId = beginLaunchAttempt(session.id, resolution.agentId, session.lastCloneId)
+      useAppStore.setState((state) => ({
+        sessions: state.sessions.map((item) =>
+          item.id === session.id
+            ? {
+                ...item,
+                cwd: workspace.cwd,
+                workspaceId: workspace.workspaceId,
+                status: 'running',
+                endedAt: undefined,
+                lastActiveAt: Date.now(),
+              }
+            : item,
+        ),
+        activeSessionId: session.id,
+      }))
+      newTerminal('ai', {
+        tool: resolution.agentId,
+        sessionId: session.id,
+        action: 'resume',
+        sourceNativeSessionId: session.nativeSessionId,
+        permission: launch.permission,
+        title: `${agentLabel(resolution.agentId, extraAgents)} · 继续`,
+        launchAttemptId: attemptId,
+      })
+      showBottom()
+      const hint = continueEntryHint(resolution, extraAgents)
+      showToast(`正在继续：${displayTitle(session.title, session.transcript)}（${hint}）`, 'info')
+    } finally {
+      releaseLaunchLock(lockKey)
+    }
   }
 
-  const resumeDisk = async (match: HistoryMatch) => {
+  const resumeDisk = async (match: HistoryMatch, preferredEntryId?: string) => {
     const linked = linkedSession(match)
     if (linked) {
-      await resumeLocal(linked)
+      await resumeLocal(linked, preferredEntryId)
       return
     }
-    const workspace = await selectWorkspacePath(match.projectPath)
-    if (!workspace) return
-    const launch = await prepareLaunch(match.tool, workspace.cwd, workspace.workspaceId)
-    if (!launch) return
-    const app = useAppStore.getState()
-    const title = titleForDisk(match)
-    const session = app.createSession(match.tool, launch.profileId, workspace.cwd, {
-      permission: launch.permission,
-      title,
-    })
-    app.linkNativeSession(session.id, match.sessionId, title)
-    app.newTerminal('ai', {
+    const extraAgents = useAppStore.getState().settings.customAgents ?? []
+    const resolution = resolveCloneEntry({
       tool: match.tool,
-      sessionId: session.id,
-      action: 'resume',
-      sourceNativeSessionId: match.sessionId,
-      permission: launch.permission,
-      title: `${agentLabel(match.tool, extra)} · 继续`,
+      family: match.tool,
+      preferredEntryId,
+      extra: extraAgents,
+      diskUnlinked: true,
     })
-    showBottom()
-    showToast(`正在继续：${title}`, 'info')
-  }
-
-  const resumeRef = async (ref: HistoryRef) => {
-    setMenu(null)
-    if (ref.kind === 'disk') await resumeDisk(ref.match)
-    else {
-      const session = sessions.find((item) => item.id === ref.sessionId)
-      if (session) await resumeLocal(session)
+    const lockKey = historyLaunchLockKey({
+      nativeSessionId: match.sessionId,
+      family: match.tool,
+      tool: match.tool,
+    })
+    if (!acquireLaunchLock(lockKey)) {
+      showToast('正在启动，请稍候', 'info')
+      return
+    }
+    try {
+      const workspace = await selectWorkspacePath(match.projectPath)
+      if (!workspace) return
+      const launch = await prepareCurrentEntryLaunch(resolution.agentId, workspace.cwd, workspace.workspaceId)
+      if (!launch) return
+      const app = useAppStore.getState()
+      const title = titleForDisk(match)
+      const session = app.createSession(resolution.agentId, launch.profileId, workspace.cwd, {
+        permission: launch.permission,
+        title,
+      })
+      app.linkNativeSession(session.id, match.sessionId, title)
+      const attemptId = beginLaunchAttempt(session.id, resolution.agentId, undefined)
+      app.newTerminal('ai', {
+        tool: resolution.agentId,
+        sessionId: session.id,
+        action: 'resume',
+        sourceNativeSessionId: match.sessionId,
+        permission: launch.permission,
+        title: `${agentLabel(resolution.agentId, extraAgents)} · 继续`,
+        launchAttemptId: attemptId,
+      })
+      showBottom()
+      showToast(`正在继续：${title}（${continueEntryHint(resolution, extraAgents)}）`, 'info')
+    } finally {
+      releaseLaunchLock(lockKey)
     }
   }
 
-  const branchRef = async (ref: HistoryRef) => {
+  const resumeRef = async (ref: HistoryRef, preferredEntryId?: string) => {
     setMenu(null)
+    const entryId = preferredEntryId ?? entryOverride[historyRefKey(ref)]
+    if (ref.kind === 'disk') await resumeDisk(ref.match, entryId)
+    else {
+      const session = sessions.find((item) => item.id === ref.sessionId)
+      if (session) await resumeLocal(session, entryId)
+    }
+  }
+
+  const branchRef = async (ref: HistoryRef, preferredEntryId?: string) => {
+    setMenu(null)
+    const extraAgents = useAppStore.getState().settings.customAgents ?? []
     const local = ref.kind === 'local' ? sessions.find((session) => session.id === ref.sessionId) : linkedSession(ref.match)
-    const tool = ref.kind === 'local' ? local?.tool : ref.match.tool
-    const preferredCwd = ref.kind === 'local' ? local?.cwd ?? '' : ref.match.projectPath
     const sourceNativeSessionId = ref.kind === 'local' ? local?.nativeSessionId : ref.match.sessionId
     const sourceTitle = titleForRef(ref)
+    const preferredCwd = ref.kind === 'local' ? local?.cwd ?? '' : ref.match.projectPath
+    const resolution = resolveCloneEntry({
+      tool: local?.tool || (ref.kind === 'disk' ? ref.match.tool : ''),
+      family: local?.family || (ref.kind === 'disk' ? ref.match.tool : undefined),
+      lastCloneId: local?.lastCloneId,
+      preferredEntryId: preferredEntryId ?? entryOverride[historyRefKey(ref)],
+      extra: extraAgents,
+      diskUnlinked: ref.kind === 'disk' && !local,
+    })
+    const tool = resolution.agentId
     if (!tool) return
 
     const workspace = await selectWorkspacePath(preferredCwd)
     if (!workspace) return
-    const launch = await prepareLaunch(tool, workspace.cwd, workspace.workspaceId)
+    const launch = await prepareCurrentEntryLaunch(tool, workspace.cwd, workspace.workspaceId)
     if (!launch) return
-    const agent = agentById(tool, useAppStore.getState().settings.customAgents ?? [])
+    const agent = agentById(tool, extraAgents)
     const useNativeFork = !!agent && supportsNativeFork(agent) && !!sourceNativeSessionId
     let initialPrompt: string | undefined
 
@@ -634,6 +702,7 @@ export function RightPanel() {
         item.id === session.id ? { ...item, title: `${sourceTitle} · 分支`, autoTitled: true, nativeTitled: false } : item,
       ),
     }))
+    const attemptId = beginLaunchAttempt(session.id, tool, undefined)
     app.newTerminal('ai', {
       tool,
       sessionId: session.id,
@@ -641,7 +710,8 @@ export function RightPanel() {
       sourceNativeSessionId: useNativeFork ? sourceNativeSessionId : undefined,
       initialPrompt,
       permission: launch.permission,
-      title: `${agentLabel(tool, extra)} · 新分支`,
+      title: `${agentLabel(tool, extraAgents)} · 新分支`,
+      launchAttemptId: attemptId,
     })
     showBottom()
     showToast(useNativeFork ? '正在创建独立原生分支' : '已用旧会话上下文创建新会话', 'success')
@@ -750,7 +820,9 @@ export function RightPanel() {
     else void refreshLocalDirectories()
   }
 
-  const filters: Array<ToolType | 'all'> = ['all', ...agents.map((agent) => agent.id)]
+  const filters: Array<ToolType | 'all'> = ['all', ...agents.filter((agent) => !isCloneAgent(agent)).map((agent) => agent.id)]
+  const activeResolution = active ? resolveRefEntry({ kind: 'local', sessionId: active.id }) : null
+  const activeRunning = active ? activeTerminalForSession(terminals, active.id) : undefined
   const detailTarget: HistoryDetailTarget | null = detail
     ? detail.kind === 'disk'
       ? { kind: 'disk', match: detail.match, title: titleForDisk(detail.match), linkedSession: linkedSession(detail.match) }
@@ -769,6 +841,9 @@ export function RightPanel() {
 
   const renderLocalItem = (session: Session) => {
     const ref: HistoryRef = { kind: 'local', sessionId: session.id }
+    const resolution = resolveRefEntry(ref)
+    const familyHint = usesCurrentEntryConfig(resolution.family, extra) ? continueEntryHint(resolution, extra) : ''
+    const missingKey = cloneEntryMissingKey(resolution.agentId)
     return (
       <div
         key={session.id}
@@ -785,9 +860,15 @@ export function RightPanel() {
         </div>
         <div className="h-meta">
           <span><span className={`hdot ${STATUS_DOT[session.status]}`} />{STATUS_LABEL[session.status]}</span>
-          <span>{agentLabel(session.tool, extra)}</span>
+          <span>{agentLabel(resolution.agentId, extra)}</span>
           <span>{timeAgo(session.lastActiveAt)}</span>
         </div>
+        {familyHint ? (
+          <div className="h-entry-hint">
+            {familyHint}
+            {missingKey ? ' · 待补配置' : ''}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -795,6 +876,9 @@ export function RightPanel() {
   const renderDiskItem = (match: HistoryMatch) => {
     const ref: HistoryRef = { kind: 'disk', match }
     const linked = linkedSession(match)
+    const resolution = resolveRefEntry(ref)
+    const familyHint = usesCurrentEntryConfig(resolution.family, extra) ? continueEntryHint(resolution, extra) : ''
+    const missingKey = cloneEntryMissingKey(resolution.agentId)
     return (
       <div
         key={match.sessionFile}
@@ -814,6 +898,12 @@ export function RightPanel() {
           <span>{agentLabel(match.tool, extra)}</span>
           <span>{timeAgo(match.mtime)}</span>
         </div>
+        {familyHint ? (
+          <div className="h-entry-hint">
+            {familyHint}
+            {missingKey ? ' · 待补配置' : ''}
+          </div>
+        ) : null}
       </div>
     )
   }
@@ -831,10 +921,26 @@ export function RightPanel() {
               <span className={`hdot ${STATUS_DOT[active.status]}`} title={STATUS_LABEL[active.status]} />
             </div>
             <div className="compact-session-meta">
-              <span>{agentLabel(active.tool, extra)}</span>
+              <span>{agentLabel(activeRunning?.tool || activeResolution?.agentId || active.tool, extra)}</span>
               <span title={active.cwd}>{activeWs?.name ?? baseName(active.cwd) ?? '-'}</span>
               <span>{activeProfile?.name ?? '-'}</span>
             </div>
+            {activeResolution && usesCurrentEntryConfig(activeResolution.family, extra) ? (
+              <div className="clone-entry-row">
+                <span className="h-entry-hint">
+                  {continueEntryHint(activeResolution, extra)}
+                  {cloneEntryMissingKey(activeResolution.agentId) ? ' · 待补配置' : ''}
+                  {activeRunning ? ' · 运行中' : ''}
+                </span>
+                <CloneEntrySelect
+                  agents={agentsInFamily(activeResolution.family, extra)}
+                  value={activeResolution.agentId}
+                  disabled={!!activeRunning}
+                  disabledReason="请先结束当前终端再换入口"
+                  onChange={(id) => setEntryOverride((current) => ({ ...current, [`local:${active.id}`]: id }))}
+                />
+              </div>
+            ) : null}
             {active.sourceTitle ? <div className="session-source">基于《{active.sourceTitle}》创建</div> : null}
             <div className="compact-session-actions">
               <button className="btn" onClick={() => setDetail({ kind: 'local', sessionId: active.id })}>查看</button>
@@ -983,6 +1089,26 @@ export function RightPanel() {
               <>
                 <button className="ctx-item" onClick={() => { setDetail(menu.target); setMenu(null) }}>查看详情</button>
                 <button className="ctx-item" disabled={!canResumeRef(menu.target)} title={canResumeRef(menu.target) ? '' : '当前记录不支持继续会话'} onClick={() => void resumeRef(menu.target)}>继续会话</button>
+                {(() => {
+                  const resolution = resolveRefEntry(menu.target)
+                  if (!usesCurrentEntryConfig(resolution.family, extra)) return null
+                  const familyAgents = agentsInFamily(resolution.family, extra)
+                  const menuSession = sessionForRef(menu.target)
+                  const running = menuSession ? !!activeTerminalForSession(terminals, menuSession.id) : false
+                  return familyAgents
+                    .filter((agent) => agent.id !== resolution.agentId)
+                    .map((agent) => (
+                      <button
+                        key={agent.id}
+                        className="ctx-item"
+                        disabled={!canResumeRef(menu.target) || running}
+                        title={running ? '请先结束当前终端再换入口' : `使用 ${agent.name} 的当前配置继续`}
+                        onClick={() => void resumeRef(menu.target, agent.id)}
+                      >
+                        用 {agent.name} 继续
+                      </button>
+                    ))
+                })()}
                 <button className="ctx-item" onClick={() => void branchRef(menu.target)}>基于此新建</button>
                 <button className="ctx-item" onClick={() => void renameRef(menu.target)}>重命名</button>
                 {menu.target.kind === 'local' ? (
@@ -1010,6 +1136,13 @@ export function RightPanel() {
         <SessionHistoryModal
           target={detailTarget}
           canResume={canResumeRef(detail)}
+          entryHint={usesCurrentEntryConfig(resolveRefEntry(detail).family, extra) ? continueEntryHint(resolveRefEntry(detail), extra) : undefined}
+          familyAgents={usesCurrentEntryConfig(resolveRefEntry(detail).family, extra) ? agentsInFamily(resolveRefEntry(detail).family, extra) : undefined}
+          selectedEntryId={resolveRefEntry(detail).agentId}
+          entrySelectDisabled={!!(sessionForRef(detail) && activeTerminalForSession(terminals, sessionForRef(detail)!.id))}
+          entrySelectDisabledReason="请先结束当前终端再换入口"
+          missingKey={cloneEntryMissingKey(resolveRefEntry(detail).agentId)}
+          onSelectEntry={(id) => setEntryOverride((current) => ({ ...current, [historyRefKey(detail)]: id }))}
           onClose={() => setDetail(null)}
           onResume={() => {
             const target = detail

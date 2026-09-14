@@ -2,9 +2,10 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import { sqliteStorage } from '@/lib/sqliteStorage'
 import { rehydratePersistedSlice, shouldDiscardEmptySession } from '@/lib/sessionLifecycle'
-import { migrateProfilesForBuiltinAgents, seedProfilesFromAgents, terminalTitleFor } from '@/lib/agents'
+import { agentById, migrateProfilesForBuiltinAgents, seedProfilesFromAgents, terminalTitleFor } from '@/lib/agents'
+import { familyOfTool, isCloneAgent, migrateSessionCloneFields } from '@/lib/agentFamily'
+import { historyAliasKey, canonicalHistoryKey, migrateHistoryAliasKeys } from '@/lib/historyIdentity'
 import { applyAutoSessionTitle } from '@/lib/sessionTitle'
-import { historyAliasKey } from '@/lib/sessionHistory'
 import { setVisibleHistoryExpansion } from '@/lib/historyGrouping'
 import { withoutRecentFile } from '@/lib/recentFiles'
 import type {
@@ -86,6 +87,7 @@ interface AppState {
   upsertProfile: (p: ToolProfile) => void
   deleteProfile: (id: string) => void
   setCustomAgents: (agents: AgentDef[]) => void
+  deleteCloneAgent: (id: string) => void
 
   // 会话
   createSession: (
@@ -103,6 +105,11 @@ interface AppState {
   toggleFavoriteSession: (id: string) => void
   deleteSession: (id: string) => void
   setActiveSession: (id: string | null) => void
+  setLastCloneId: (id: string, lastCloneId: string | undefined) => void
+  commitSessionLaunch: (
+    id: string,
+    patch: { lastCloneId?: string; profileId?: string; permission?: PermissionChoice },
+  ) => void
 
   // 终端
   newTerminal: (
@@ -114,6 +121,7 @@ interface AppState {
       action?: 'new' | 'resume' | 'fork'
       sourceNativeSessionId?: string
       initialPrompt?: string
+      launchAttemptId?: string
       resume?: boolean
       autoMode?: boolean
       permission?: PermissionChoice
@@ -184,6 +192,7 @@ const defaultSettings: AppSettings = {
   keymap: {},
   shellExe: 'powershell.exe',
   launchPermissionByAgent: { claude: 'auto', opencode: 'default', antigravity: 'default', hermes: 'default' },
+  quickLaunch: { hiddenAgentIds: [], agentOrder: [] },
 }
 
 export const useAppStore = create<AppState>()(
@@ -242,6 +251,11 @@ export const useAppStore = create<AppState>()(
       getProfile: (id) => get().profiles.find((p) => p.id === id),
       getProfileForTool: (tool, workspaceId) => {
         const ps = get().profiles
+        const extra = get().settings.customAgents ?? []
+        const agent = agentById(tool, extra)
+        if (isCloneAgent(agent)) {
+          return ps.find((p) => p.tool === tool && p.scope === 'global') || ps.find((p) => p.tool === tool)
+        }
         return (
           ps.find((p) => p.tool === tool && p.scope === 'workspace' && p.workspaceId === workspaceId) ||
           ps.find((p) => p.tool === tool && p.scope === 'global') ||
@@ -256,14 +270,42 @@ export const useAppStore = create<AppState>()(
       deleteProfile: (id) => set((s) => ({ profiles: s.profiles.filter((p) => p.id !== id) })),
       setCustomAgents: (agents) =>
         set((s) => ({ settings: { ...s.settings, customAgents: agents } })),
+      deleteCloneAgent: (id) =>
+        set((s) => {
+          const extra = s.settings.customAgents ?? []
+          const agent = extra.find((item) => item.id === id)
+          if (!isCloneAgent(agent)) return {}
+          const family = agent.sourceFamily
+          const keymap = { ...(s.settings.keymap ?? {}) }
+          delete keymap[`ai.${id}`]
+          const launchPermissionByAgent = { ...(s.settings.launchPermissionByAgent ?? {}) }
+          delete launchPermissionByAgent[id]
+          const hiddenAgentIds = (s.settings.quickLaunch?.hiddenAgentIds ?? []).filter((item) => item !== id)
+          const agentOrder = (s.settings.quickLaunch?.agentOrder ?? []).filter((item) => item !== id)
+          return {
+            profiles: s.profiles.filter((profile) => profile.tool !== id),
+            settings: {
+              ...s.settings,
+              customAgents: extra.filter((item) => item.id !== id),
+              defaultTool: s.settings.defaultTool === id ? family : s.settings.defaultTool,
+              keymap,
+              launchPermissionByAgent,
+              quickLaunch: { hiddenAgentIds, agentOrder },
+            },
+          }
+        }),
 
       createSession: (tool, profileId, cwd, opts) => {
+        const extra = get().settings.customAgents ?? []
         const profile = get().getProfile(profileId)
         const title = opts?.title || (profile?.name ? `${profile.name} 会话` : '新建会话')
+        const family = familyOfTool(tool, extra)
         const session: Session = {
           id: uid(),
           title,
           tool,
+          family,
+          lastCloneId: tool,
           workspaceId: get().activeWorkspaceId || '',
           profileId,
           cwd,
@@ -328,17 +370,31 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           const target = s.sessions.find((x) => x.id === id)
           const aliases = { ...s.historyAliases }
-          if (target?.nativeSessionId) aliases[historyAliasKey(target.tool, target.nativeSessionId)] = title
+          if (target?.nativeSessionId) {
+            const family = target.family || target.tool
+            aliases[canonicalHistoryKey(family, target.nativeSessionId)] = title
+            aliases[historyAliasKey(target.tool, target.nativeSessionId)] = title
+          }
           return {
-            sessions: s.sessions.map((x) => (x.id === id ? { ...x, title, autoTitled: false } : x)),
+            sessions: s.sessions.map((x) => {
+              const sameNative =
+                !!target?.nativeSessionId &&
+                x.nativeSessionId === target.nativeSessionId &&
+                (x.family || x.tool) === (target.family || target.tool)
+              return x.id === id || sameNative ? { ...x, title, autoTitled: false } : x
+            }),
             historyAliases: aliases,
           }
         }),
       renameHistory: (tool, nativeSessionId, title) =>
         set((s) => ({
-          historyAliases: { ...s.historyAliases, [historyAliasKey(tool, nativeSessionId)]: title },
+          historyAliases: {
+            ...s.historyAliases,
+            [canonicalHistoryKey(tool, nativeSessionId)]: title,
+            [historyAliasKey(tool, nativeSessionId)]: title,
+          },
           sessions: s.sessions.map((x) =>
-            x.tool === tool && x.nativeSessionId === nativeSessionId ? { ...x, title, autoTitled: false } : x,
+            x.nativeSessionId === nativeSessionId && (x.family || x.tool) === tool ? { ...x, title, autoTitled: false } : x,
           ),
         })),
       toggleFavoriteSession: (id) =>
@@ -349,6 +405,24 @@ export const useAppStore = create<AppState>()(
           activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
         })),
       setActiveSession: (id) => set({ activeSessionId: id }),
+      setLastCloneId: (id, lastCloneId) =>
+        set((s) => ({
+          sessions: s.sessions.map((x) => (x.id === id ? { ...x, lastCloneId, lastActiveAt: now() } : x)),
+        })),
+      commitSessionLaunch: (id, patch) =>
+        set((s) => ({
+          sessions: s.sessions.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  lastCloneId: patch.lastCloneId ?? x.lastCloneId,
+                  profileId: patch.profileId ?? x.profileId,
+                  launchPermission: patch.permission ?? x.launchPermission,
+                  lastActiveAt: now(),
+                }
+              : x,
+          ),
+        })),
 
       newTerminal: (kind, opts) => {
         const extra = get().settings.customAgents ?? []
@@ -368,6 +442,7 @@ export const useAppStore = create<AppState>()(
                         action: opts.action ?? (opts.resume ? 'resume' : 'new'),
                         sourceNativeSessionId: opts.sourceNativeSessionId,
                         initialPrompt: opts.initialPrompt,
+                        launchAttemptId: opts.launchAttemptId,
                         resume: opts.action === 'resume' || opts.resume,
                         permission,
                         autoMode: permission === 'auto',
@@ -397,6 +472,7 @@ export const useAppStore = create<AppState>()(
           action: opts?.action ?? (opts?.resume ? 'resume' : 'new'),
           sourceNativeSessionId: opts?.sourceNativeSessionId,
           initialPrompt: opts?.initialPrompt,
+          launchAttemptId: opts?.launchAttemptId,
           resume: opts?.action === 'resume' || opts?.resume,
           permission,
           autoMode: permission === 'auto',
@@ -524,7 +600,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: 'ringcode-store',
-      version: 7,
+      version: 8,
       storage: createJSONStorage(() => sqliteStorage),
       migrate: (persisted, fromVersion) => {
         if (fromVersion < 2) return {}
@@ -546,13 +622,19 @@ export const useAppStore = create<AppState>()(
           keymap,
           launchPermissionByAgent,
         }
+        const extraAgents = settings.customAgents ?? []
         const sessions = Array.isArray(p.sessions)
-          ? (p.sessions as Session[]).map((s) => ({
-              ...s,
-              tool: s.tool === 'gemini' ? 'antigravity' : s.tool,
-              profileId: s.profileId === 'pf-gemini-default' ? 'pf-antigravity-default' : s.profileId,
-              resumable: !!s.nativeSessionId || !!s.resumable,
-            }))
+          ? (p.sessions as Session[]).map((s) =>
+              migrateSessionCloneFields(
+                {
+                  ...s,
+                  tool: s.tool === 'gemini' ? 'antigravity' : s.tool,
+                  profileId: s.profileId === 'pf-gemini-default' ? 'pf-antigravity-default' : s.profileId,
+                  resumable: !!s.nativeSessionId || !!s.resumable,
+                },
+                extraAgents,
+              ),
+            )
           : []
         const terminals = Array.isArray(p.terminals)
           ? (p.terminals as TerminalTab[]).map((t) => ({
@@ -563,7 +645,7 @@ export const useAppStore = create<AppState>()(
           : []
         const historyAliases =
           p.historyAliases && typeof p.historyAliases === 'object'
-            ? (p.historyAliases as Record<string, string>)
+            ? migrateHistoryAliasKeys(p.historyAliases as Record<string, string>, extraAgents)
             : {}
         const rawExpanded = p.historyExpandedGroups as
           | { local?: Record<string, boolean>; disk?: Record<string, boolean> }

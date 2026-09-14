@@ -9,6 +9,13 @@ import { MockPty, type MockTool } from '@/lib/mockPty'
 import { createTranscriptBuffer } from '@/lib/transcriptBuffer'
 import { createConversationInputTracker } from '@/lib/sessionLifecycle'
 import { agentById, buildLaunchArgs, terminalCompatibilityEnv, usesInitialPromptStdin } from '@/lib/agents'
+import { historyRootTool, usesCurrentEntryConfig } from '@/lib/agentFamily'
+import { resolveCurrentLaunchConfig } from '@/lib/agentLaunch'
+import {
+  isLatestLaunchAttempt,
+  markLaunchAttemptCommitted,
+  revertLaunchAttemptIfLatest,
+} from '@/lib/launchAttempts'
 import { quoteForShell } from '@/lib/shellQuote'
 import { handleTerminalKeyEvent } from '@/lib/terminalKeyHandler'
 import { pasteTerminalFromContextMenu, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
@@ -94,6 +101,8 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     let initialPromptSent = false
     const conversationInput = createConversationInputTracker()
 
+    let sawOutput = false
+
     const fail = (err: unknown) => {
       if (disposed) return
       const msg = err instanceof Error ? err.message : String(err)
@@ -105,6 +114,22 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       const app = useAppStore.getState()
       app.showToast(`启动失败：${msg}`, 'error')
       if (terminal.sessionId) app.setSessionStatus(terminal.sessionId, 'failed')
+    }
+
+    const commitLaunchEntry = () => {
+      if (!terminal.sessionId || !terminal.tool) return
+      if (terminal.launchAttemptId && !isLatestLaunchAttempt(terminal.sessionId, terminal.launchAttemptId)) return
+      markLaunchAttemptCommitted(terminal.launchAttemptId)
+      const app = useAppStore.getState()
+      const extra = app.settings.customAgents ?? []
+      if (!usesCurrentEntryConfig(terminal.tool, extra)) return
+      const sess = app.sessions.find((item) => item.id === terminal.sessionId)
+      const profile = app.getProfileForTool(terminal.tool, sess?.workspaceId || app.activeWorkspaceId || undefined)
+      app.commitSessionLaunch(terminal.sessionId, {
+        lastCloneId: terminal.tool,
+        profileId: profile?.id,
+        permission: terminal.permission,
+      })
     }
 
     const spawnReal = async () => {
@@ -135,13 +160,29 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
           const extra = app.settings.customAgents ?? []
           const agent = agentById(terminal.tool, extra)
           if (agent) promptViaStdin = usesInitialPromptStdin(agent)
-          Object.assign(env, terminalCompatibilityEnv(terminal.tool, terminal.id))
-          const profile = sess?.profileId
-            ? app.getProfile(sess.profileId) ?? app.getProfileForTool(terminal.tool, sess.workspaceId || undefined)
-            : app.getProfileForTool(terminal.tool, app.activeWorkspaceId || undefined)
-          exe = profile?.command || agent?.command || terminal.tool
-          const permission: PermissionChoice | undefined =
-            terminal.permission ?? sess?.launchPermission ?? (terminal.autoMode ? 'auto' : undefined)
+          const family = agent?.sourceFamily || terminal.tool
+          Object.assign(env, terminalCompatibilityEnv(terminal.tool, terminal.id, family))
+          const current = usesCurrentEntryConfig(terminal.tool, extra)
+          const profile = current
+            ? app.getProfileForTool(terminal.tool, sess?.workspaceId || app.activeWorkspaceId || undefined)
+            : sess?.profileId
+              ? app.getProfile(sess.profileId) ?? app.getProfileForTool(terminal.tool, sess.workspaceId || undefined)
+              : app.getProfileForTool(terminal.tool, app.activeWorkspaceId || undefined)
+          const cfg = agent && current
+            ? resolveCurrentLaunchConfig({
+                agent,
+                profile,
+                permissionByAgent: app.settings.launchPermissionByAgent ?? {},
+              })
+            : undefined
+          if (cfg && 'ok' in cfg && cfg.ok === false) {
+            throw new Error('缺少有效的启动配置')
+          }
+          const resolved = cfg && !('ok' in cfg) ? cfg : undefined
+          exe = resolved?.command || profile?.command || agent?.command || terminal.tool
+          const permission: PermissionChoice | undefined = current
+            ? terminal.permission ?? resolved?.permission
+            : terminal.permission ?? sess?.launchPermission ?? (terminal.autoMode ? 'auto' : undefined)
           args = buildLaunchArgs(
             agent ?? {
               id: terminal.tool,
@@ -152,23 +193,27 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
               resumeFlag: '--resume',
               historyRoots: [],
             },
-            profile?.args || '',
+            current ? '' : profile?.args || '',
             {
               permission,
               action,
               nativeSessionId: sourceNativeSessionId,
               initialPrompt: action === 'new' ? terminal.initialPrompt : undefined,
-              model: profile?.model,
-              modelMode: profile?.modelMode,
+              model: resolved?.model ?? profile?.model,
+              modelMode: resolved?.modelMode ?? profile?.modelMode,
+              codexProfile: resolved?.codexProfile,
             },
           )
-          if (profile?.envs) {
+          if (!current && profile?.envs) {
             for (const e of profile.envs) {
               if (e.sensitive) continue
               if (e.value) env[e.key] = e.value
             }
           }
-          const sensitiveEnvKeys = (profile?.envs ?? []).filter((e) => e.sensitive && e.key).map((e) => e.key)
+          if (resolved) Object.assign(env, resolved.envPlan.extraEnv)
+          const sensitiveEnvKeys = current
+            ? resolved?.envPlan.unsetKeys ?? []
+            : (profile?.envs ?? []).filter((e) => e.sensitive && e.key).map((e) => e.key)
           const ptyId = await ptyClient.spawn(terminal.id, {
             exe,
             args,
@@ -176,10 +221,17 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
             env,
             cols,
             rows,
-            credentialRef: profile?.credentialRef,
+            credentialRef: resolved?.credentialRef ?? profile?.credentialRef,
             sensitiveEnvKeys,
+            unsetEnvKeys: resolved?.envPlan.unsetKeys,
+            credentialEnv: resolved?.envPlan.injectKey,
+            requireCredential: resolved?.requireCredential,
+            extraEnv: resolved?.envPlan.extraEnv,
+            cloneId: resolved?.requireCredential ? terminal.tool : undefined,
+            codexOverlay: resolved?.overlay,
           })
           if (!ptyId || disposed) return
+          commitLaunchEntry()
         } else {
           exe = app.settings.shellExe || ''
           const ptyId = await ptyClient.spawn(terminal.id, { exe, args, cwd, env, cols, rows })
@@ -201,7 +253,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         if (!current || current.autoTitled === false) return
         try {
           const found = await window.ringcode?.historyFindRecent?.({
-            tool: terminal.tool,
+            tool: historyRootTool(terminal.tool, useAppStore.getState().settings.customAgents ?? []),
             projectPath: cwd,
             startedAt: current.createdAt,
             excludeSessionId: action === 'fork' ? sourceNativeSessionId : undefined,
@@ -236,6 +288,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       }, 400)
       const d2 = ptyClient.onData((tabId, data) => {
         if (tabId !== terminal.id) return
+        sawOutput = true
         term.write(data)
         if (terminal.sessionId) transcript.push(terminal.sessionId, data)
         scheduleNativeLink(1_500)
@@ -254,8 +307,13 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         if (terminal.sessionId) {
           const st = useAppStore.getState()
           st.setSessionStatus(terminal.sessionId, code === 0 ? 'ended' : 'failed')
-          if (code !== 0 && action === 'resume') st.showToast('原会话未恢复，请检查原生会话是否仍可用', 'error')
-          else if (code !== 0 && action === 'fork') st.showToast('分支创建失败，可改用基于正文新建', 'error')
+          if (code !== 0 && action === 'resume') {
+            if (!sawOutput) {
+              const reverted = revertLaunchAttemptIfLatest(terminal.sessionId, terminal.launchAttemptId)
+              if (reverted) st.setLastCloneId(terminal.sessionId, reverted.previous)
+            }
+            st.showToast('原会话未恢复，请检查原生会话是否仍可用', 'error')
+          } else if (code !== 0 && action === 'fork') st.showToast('分支创建失败，可改用基于正文新建', 'error')
         }
         // TRM-008：AI 会话结束/失败，且窗口未聚焦或异常退出时发系统通知
         if (terminal.kind === 'ai' && (!document.hasFocus() || code !== 0)) {

@@ -2,9 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
 import { useFsStore } from '@/store/useFsStore'
 import { isFsAccessSupported, pickDirectory } from '@/lib/fs'
-import { listAgents } from '@/lib/agents'
-import { DEFAULT_KEYMAP } from '@/lib/keymap'
 import { runCommand } from '@/lib/commands'
+import { QuickLaunchCluster } from '@/components/QuickLaunchCluster'
 
 export function TopBar() {
   const workspaces = useAppStore((s) => s.workspaces)
@@ -23,9 +22,6 @@ export function TopBar() {
 
   const setFsHandle = useFsStore((s) => s.setHandle)
   const showPrompt = useAppStore((s) => s.showPrompt)
-  const customAgents = useAppStore((s) => s.settings.customAgents)
-  const keymap = useAppStore((s) => s.settings.keymap)
-  const agents = listAgents(customAgents ?? [])
 
   const [wsOpen, setWsOpen] = useState(false)
   const [layoutOpen, setLayoutOpen] = useState(false)
@@ -70,7 +66,7 @@ export function TopBar() {
     <div className="topbar">
       <div className="t-btn" ref={wsRef} style={{ position: 'relative' }} onClick={() => setWsOpen((v) => !v)}>
         <span className="t-icon" />
-        <span>▾ {activeWs?.name ?? '选择工作区'}</span>
+        <span className="t-ws-name">▾ {activeWs?.name ?? '选择工作区'}</span>
         {wsOpen && (
           <div
             style={{
@@ -185,23 +181,7 @@ export function TopBar() {
         )}
       </div>
 
-      <div className="spacer" />
-
-      {agents.map((a) => {
-        const shortcut = keymap?.[ `ai.${a.id}` ] || (a.shortcutDigit ? DEFAULT_KEYMAP[`ai.${a.id}`] : undefined)
-        return (
-          <button
-            key={a.id}
-            className="tool-btn agent-tool-btn"
-            title={`启动 ${a.name}${shortcut ? ` (${shortcut})` : ''}`}
-            aria-label={`启动 ${a.name}${shortcut ? `，快捷键 ${shortcut}` : ''}`}
-            onClick={() => void runCommand(`ai.${a.id}`)}
-          >
-            <img src={a.icon} alt="" aria-hidden="true" data-mono={a.iconMode === 'mono' ? '' : undefined} />
-            <span className="agent-tool-label">{a.name}</span>
-          </button>
-        )
-      })}
+      <QuickLaunchCluster onManage={() => openSettings('agents')} />
       <button className="tool-btn" title="设置" aria-label="设置" onClick={() => openSettings()}>
         ⚙
       </button>

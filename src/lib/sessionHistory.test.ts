@@ -77,6 +77,18 @@ describe('findHistoryLinks', () => {
     ])
   })
 
+  it('links clone-family local records to family disk history', () => {
+    const cloneLocal = {
+      ...local,
+      id: 'local-clone',
+      tool: 'clone-b',
+      family: 'claude',
+    }
+    expect(findHistoryLinks([cloneLocal], [disk])).toEqual([
+      { sessionId: 'local-clone', nativeSessionId: 'native-1', nativeTitle: 'FIX_LOGIN' },
+    ])
+  })
+
   it('does not link different directories or far-apart times', () => {
     expect(findHistoryLinks([local], [{ ...disk, projectPath: 'C:\\other' }])).toEqual([])
     expect(findHistoryLinks([local], [{ ...disk, startedAt: 900_000 }])).toEqual([])

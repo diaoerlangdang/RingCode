@@ -23,4 +23,6 @@ nsis:
   perMachine: false
   shortcutName: 金刚琢
 asar: true
+asarUnpack:
+  - node_modules/@napi-rs/**
 npmRebuild: false

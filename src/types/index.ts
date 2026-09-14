@@ -11,6 +11,8 @@ export type PermissionChoice = 'default' | 'auto' | 'dangerous'
 export type ModelMode = 'default' | 'custom'
 export type SessionLaunchAction = 'new' | 'resume' | 'fork'
 export type SettingsTab = 'general' | 'profiles' | 'agents' | 'keys'
+/** 可复制分身的原版家族。第一版仅 Claude Code / Codex。 */
+export type CloneFamily = 'claude' | 'codex'
 
 /** Agent 适配器：内置写在 src/lib/agents.ts，自定义存 settings.customAgents */
 export interface AgentDef {
@@ -28,6 +30,10 @@ export interface AgentDef {
   modelArgs?: string[]
   setupUrl?: string
   shortcutDigit?: string
+  /** 分身指向的原版家族；仅分身设置。不能从分身再复制。 */
+  sourceFamily?: CloneFamily
+  /** 系统启动器命令名；仅分身。与稳定 id 分离，创建后不可改。 */
+  commandName?: string
   /** 兼容旧的自定义 Agent 配置；内置 Agent 使用 session.resumeArgs */
   resumeFlag?: string
   /** 原生会话能力。{id} 在启动时替换为原生 session id。 */
@@ -85,6 +91,8 @@ export interface ToolProfile {
   /** Windows Credential Manager 中的键名，不存明文 */
   credentialRef?: string
   credentialSet?: boolean
+  /** 分身自定义网关 URL；空表示该入口的官方线路。 */
+  baseUrl?: string
 }
 
 /** AI 会话（PRD §6.7.1） */
@@ -103,7 +111,11 @@ export interface Session {
   transcript: string
   nativeSessionId?: string
   resumable: boolean
-  /** 本次会话实际使用的权限模式，恢复本地会话时复用 */
+  /** 历史家族。Claude/Codex 分身与原版同属该家族；自定义 Agent 用自身 id。 */
+  family?: string
+  /** 上次实际打开的入口 Agent id。继续/分叉默认它，不决定 Key/URL/模型/权限。 */
+  lastCloneId?: string
+  /** 本次会话实际使用的权限模式，仅用于展示/诊断一次启动，不作为下次配置来源 */
   launchPermission?: PermissionChoice
   /** “基于此记录新建”的来源 RingCode Session */
   sourceSessionId?: string
@@ -127,6 +139,8 @@ export interface TerminalTab {
   sessionId?: string
   /** 启动动作：新建、恢复原生上下文或创建原生分支 */
   action?: SessionLaunchAction
+  /** 本次启动尝试 id；PTY 创建成功后才提交 lastCloneId */
+  launchAttemptId?: string
   /** resume/fork 使用的来源原生 session id；fork 时不能写入新 Session.nativeSessionId */
   sourceNativeSessionId?: string
   /** Agent 不支持原生分支时，启动后自动写入的有界上下文 */
@@ -164,6 +178,11 @@ export interface SavedLayout {
   layout: LayoutState
 }
 
+export interface QuickLaunchPrefs {
+  hiddenAgentIds?: string[]
+  agentOrder?: string[]
+}
+
 export interface AppSettings {
   theme: ThemeMode
   defaultTool: ToolType
@@ -179,6 +198,8 @@ export interface AppSettings {
   shellExe?: string
   /** Agent id -> 直接启动时使用的权限模式 */
   launchPermissionByAgent?: Record<string, PermissionChoice>
+  /** 顶栏快速启动显隐与顺序，按稳定 Agent id 保存 */
+  quickLaunch?: QuickLaunchPrefs
 }
 
 /** 最近打开的文件（左栏「最近」） */

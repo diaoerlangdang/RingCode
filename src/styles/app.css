@@ -65,8 +65,10 @@
   align-items: center;
   padding: 0 var(--sp-4);
   gap: var(--sp-3);
+  overflow: hidden;
 }
 .t-btn {
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   gap: var(--sp-2);
@@ -84,6 +86,11 @@
   border-color: var(--border-strong);
   color: var(--text);
 }
+.t-ws-name {
+  max-width: min(220px, 22vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .t-icon {
   width: 14px;
   height: 14px;
@@ -95,6 +102,7 @@
   flex: 1;
 }
 .tool-btn {
+  flex-shrink: 0;
   width: 36px;
   height: 32px;
   border-radius: var(--radius);
@@ -119,6 +127,7 @@
 .agent-tool-btn {
   width: auto;
   min-width: 36px;
+  max-width: 160px;
   padding: 0 9px;
   gap: 6px;
 }
@@ -126,6 +135,126 @@
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-launch {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  overflow: hidden;
+}
+.quick-launch-measure {
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  display: flex;
+  gap: 6px;
+  left: -9999px;
+}
+.quick-more {
+  position: relative;
+}
+.quick-more-btn {
+  max-width: 140px;
+}
+.quick-more-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: min(320px, calc(100vw - 24px));
+  max-height: min(420px, calc(100vh - 80px));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-modal);
+  padding: 8px;
+  z-index: 50;
+}
+.quick-more-list {
+  overflow: auto;
+  max-height: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 6px 0;
+}
+.quick-more-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 8px;
+  border-radius: 6px;
+}
+.quick-more-launch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+.quick-more-item.active,
+.quick-more-item:hover {
+  background: var(--surface-2);
+}
+.quick-more-item img {
+  width: 18px;
+  height: 18px;
+}
+.quick-more-item span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.quick-more-item strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.quick-more-item em {
+  font-style: normal;
+  font-size: 10px;
+  color: var(--text-3);
+}
+.quick-more-config {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 4px;
+}
+.quick-more-empty,
+.quick-more-manage {
+  font-size: 12px;
+  color: var(--text-2);
+  padding: 8px;
+}
+.quick-more-manage {
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  cursor: pointer;
 }
 .tool-btn img {
   width: 20px;
@@ -133,18 +262,8 @@
   object-fit: contain;
   border-radius: 4px;
 }
-/* 单色图标（纯黑字形）：深色主题下 invert 成白色，一套图适配两主题（对应 AgentDef.iconMode='mono'） */
 :root[data-theme='dark'] img[data-mono] {
   filter: invert(1);
-}
-@media (max-width: 1180px) {
-  .agent-tool-btn {
-    width: 36px;
-    padding: 0;
-  }
-  .agent-tool-label {
-    display: none;
-  }
 }
 .tool-btn .badge-dot {
   position: absolute;
@@ -1061,6 +1180,36 @@
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+.history-item .h-entry-hint,
+.clone-entry-row .h-entry-hint {
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.clone-entry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 6px 0 2px;
+  flex-wrap: wrap;
+}
+.clone-entry-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+.clone-entry-select select {
+  max-width: 180px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 6px;
 }
 .history-item .h-snippet {
   color: var(--text-2);

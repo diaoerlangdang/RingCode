@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
+import { CloneEntrySelect } from '@/components/CloneEntrySelect'
 import { cleanTranscript } from '@/lib/sessionText'
 import { historyFallbackText, messagesToText, parseHistoryMessages, type HistoryMessage } from '@/lib/sessionHistory'
-import type { HistoryMatch, Session } from '@/types'
+import type { AgentDef, HistoryMatch, Session } from '@/types'
 
 export type HistoryDetailTarget =
   | { kind: 'local'; session: Session; title: string; sourceTitle?: string }
@@ -14,6 +15,13 @@ interface Props {
   onResume: () => void
   onBranch: () => void
   onRename: () => void
+  entryHint?: string
+  familyAgents?: AgentDef[]
+  selectedEntryId?: string
+  entrySelectDisabled?: boolean
+  entrySelectDisabledReason?: string
+  missingKey?: boolean
+  onSelectEntry?: (id: string) => void
 }
 
 const ROLE_LABEL = {
@@ -23,7 +31,21 @@ const ROLE_LABEL = {
   system: '系统',
 } as const
 
-export function SessionHistoryModal({ target, canResume, onClose, onResume, onBranch, onRename }: Props) {
+export function SessionHistoryModal({
+  target,
+  canResume,
+  onClose,
+  onResume,
+  onBranch,
+  onRename,
+  entryHint,
+  familyAgents,
+  selectedEntryId,
+  entrySelectDisabled,
+  entrySelectDisabledReason,
+  missingKey,
+  onSelectEntry,
+}: Props) {
   const [messages, setMessages] = useState<HistoryMessage[]>([])
   const [plainText, setPlainText] = useState('')
   const [loading, setLoading] = useState(true)
@@ -35,7 +57,7 @@ export function SessionHistoryModal({ target, canResume, onClose, onResume, onBr
 
   const targetKind = target.kind
   const localSessionId = target.kind === 'local' ? target.session.id : ''
-  const localTool = target.kind === 'local' ? target.session.tool : ''
+  const localTool = target.kind === 'local' ? target.session.family || target.session.tool : ''
   const localNativeId = target.kind === 'local' ? target.session.nativeSessionId ?? '' : ''
   const diskFile = target.kind === 'disk' ? target.match.sessionFile : ''
   const sourceKey = targetKind === 'disk'
@@ -163,6 +185,7 @@ export function SessionHistoryModal({ target, canResume, onClose, onResume, onBr
               <span>{tool}</span>
               <span title={cwd}>{cwd || '未知工作目录'}</span>
               {sourceTitle ? <span>基于《{sourceTitle}》创建</span> : null}
+              {entryHint ? <span>{entryHint}{missingKey ? ' · 待补配置' : ''}</span> : null}
             </div>
           </div>
           <button className="history-close" onClick={onClose} aria-label="关闭">
@@ -208,6 +231,15 @@ export function SessionHistoryModal({ target, canResume, onClose, onResume, onBr
 
         <div className="history-modal-actions">
           <button className="btn" onClick={onRename}>重命名</button>
+          {familyAgents && selectedEntryId && onSelectEntry ? (
+            <CloneEntrySelect
+              agents={familyAgents}
+              value={selectedEntryId}
+              disabled={entrySelectDisabled}
+              disabledReason={entrySelectDisabledReason}
+              onChange={onSelectEntry}
+            />
+          ) : null}
           <span style={{ flex: 1 }} />
           <button className="btn" onClick={onBranch}>基于此新建</button>
           <button className="btn primary" onClick={onResume} disabled={!canResume} title={canResume ? '' : '当前记录不支持继续会话'}>

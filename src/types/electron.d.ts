@@ -10,6 +10,12 @@ export interface PtySpawnOpts {
   rows: number
   credentialRef?: string
   sensitiveEnvKeys?: string[]
+  unsetEnvKeys?: string[]
+  credentialEnv?: string
+  requireCredential?: boolean
+  extraEnv?: Record<string, string>
+  cloneId?: string
+  codexOverlay?: { cloneId: string; profileName: string; content: string }
 }
 
 export interface RingCodeApi {
@@ -25,6 +31,49 @@ export interface RingCodeApi {
   credSet: (key: string, val: string) => Promise<boolean>
   credHas: (key: string) => Promise<boolean>
   credDelete: (key: string) => Promise<boolean>
+  registerOwnedResource: (item: {
+    kind: 'credential' | 'codexOverlay' | 'launcher' | 'snapshot'
+    id?: string
+    path?: string
+    cloneId: string
+    profileName?: string
+    commandName?: string
+  }) => Promise<boolean>
+  writeCodexOverlay: (input: {
+    cloneId: string
+    profileName: string
+    content: string
+  }) => Promise<{ ok: true; path: string } | { ok: false; reason: string }>
+  cloneSync: (input: {
+    snapshot: {
+      version: 1
+      cloneId: string
+      commandName: string
+      name: string
+      family: 'claude' | 'codex'
+      command: string
+      model: string
+      modelMode: 'default' | 'custom'
+      baseUrl: string
+      permission?: 'default' | 'auto' | 'dangerous'
+      credentialRef: string
+      codexProfileName?: string
+      updatedAt: number
+    }
+  }) => Promise<{
+    snapshot: { ok: true; path: string } | { ok: false; reason: string }
+    launcher: { ok: true; path: string } | { ok: false; reason: string }
+    appLaunch: { ok: true; path: string } | { ok: false; reason: string }
+  }>
+  cloneLauncherStatus: (input: {
+    cloneId: string
+    commandName: string
+  }) => Promise<{ ok: boolean; path: string; reason?: string }>
+  cloneOpenBin: () => Promise<boolean>
+  cloneDelete: (cloneId: string) => Promise<{ ok: boolean; results: Array<{ ok: boolean; target: string; reason?: string }>; reason?: string }>
+  cloneClearKey: (cloneId: string) => Promise<{ ok: boolean; results: Array<{ ok: boolean; target: string; reason?: string }>; reason?: string }>
+  cloneClearAll: () => Promise<{ ok: boolean; results: Array<{ ok: boolean; target: string; reason?: string }>; reason?: string }>
+  cloneRunning: (cloneId?: string) => Promise<boolean>
   storeGet: (key: string) => Promise<string | null>
   storeSet: (key: string, value: string) => Promise<void>
   storeDel: (key: string) => Promise<void>

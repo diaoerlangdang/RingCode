@@ -79,8 +79,8 @@ describe('Agent 启动准备', () => {
       async () => true,
     )
 
-    expect(noProfile).toEqual({ ok: false, reason: 'profile', openSettings: true })
-    expect(noCommand).toEqual({ ok: false, reason: 'profile', openSettings: true })
+    expect(noProfile).toEqual({ ok: false, reason: 'profile', openSettings: true, settingsTab: 'profiles' })
+    expect(noCommand).toEqual({ ok: false, reason: 'profile', openSettings: true, settingsTab: 'profiles' })
   })
 
   it('CLI 不存在时打开配置方案设置', async () => {
@@ -89,7 +89,7 @@ describe('Agent 启动准备', () => {
       async () => false,
     )
 
-    expect(result).toEqual({ ok: false, reason: 'executable', openSettings: true })
+    expect(result).toEqual({ ok: false, reason: 'executable', openSettings: true, settingsTab: 'profiles' })
   })
 
   it('桌面运行时不可用时只提示错误，不打开配置设置', async () => {

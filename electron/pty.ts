@@ -8,6 +8,8 @@ import { getCredential } from './cred'
 import { assertAllowedCwd } from './pathSafe'
 import { resolvePtyExecutable } from './executableResolver'
 import { PtyResizeGate } from './ptyLifecycle'
+import { writeCodexOverlay } from './codexOverlayWrite'
+import { registerOwnedResource } from './ownedResources'
 
 export interface PtySpawnOpts {
   exe: string
@@ -19,11 +21,20 @@ export interface PtySpawnOpts {
   /** 主进程凭据引用；渲染层不得传明文密钥 */
   credentialRef?: string
   sensitiveEnvKeys?: string[]
+  /** 启动前删除、避免串用线路的环境变量 */
+  unsetEnvKeys?: string[]
+  /** 只向该变量注入密钥；缺省则写入全部 sensitiveEnvKeys（原版兼容） */
+  credentialEnv?: string
+  requireCredential?: boolean
+  extraEnv?: Record<string, string>
+  cloneId?: string
+  codexOverlay?: { cloneId: string; profileName: string; content: string }
 }
 
 interface ManagedPty {
   process: pty.IPty
   resize: PtyResizeGate
+  cloneId?: string
 }
 
 const procs = new Map<string, ManagedPty>()
@@ -45,13 +56,42 @@ export function registerPtyHandlers(): void {
     if (!opts || typeof opts !== 'object') throw new Error('invalid pty opts')
     const exe = opts.exe || (process.platform === 'win32' ? 'powershell.exe' : process.env.SHELL || 'bash')
     const env = { ...process.env, ...(opts.env || {}) } as { [key: string]: string }
-    const sensitiveKeys = Array.isArray(opts.sensitiveEnvKeys) ? opts.sensitiveEnvKeys.filter((k) => typeof k === 'string' && k) : []
-    for (const k of sensitiveKeys) delete env[k]
+    const unsetKeys = [
+      ...(Array.isArray(opts.unsetEnvKeys) ? opts.unsetEnvKeys : []),
+      ...(Array.isArray(opts.sensitiveEnvKeys) ? opts.sensitiveEnvKeys : []),
+    ].filter((k) => typeof k === 'string' && k)
+    for (const k of new Set(unsetKeys)) delete env[k]
+    if (opts.extraEnv && typeof opts.extraEnv === 'object') {
+      for (const [key, value] of Object.entries(opts.extraEnv)) {
+        if (typeof key === 'string' && key && typeof value === 'string') env[key] = value
+      }
+    }
     if (typeof opts.credentialRef === 'string' && opts.credentialRef) {
       const secret = getCredential(opts.credentialRef)
-      if (secret) {
-        for (const k of sensitiveKeys) env[k] = secret
+      if (opts.requireCredential && !secret) {
+        throw new Error('该分身尚未配置 API Key，请先补全密钥')
       }
+      if (secret) {
+        const injectKey = typeof opts.credentialEnv === 'string' && opts.credentialEnv ? opts.credentialEnv : ''
+        if (injectKey) env[injectKey] = secret
+        else {
+          const sensitiveKeys = Array.isArray(opts.sensitiveEnvKeys) ? opts.sensitiveEnvKeys.filter((k) => typeof k === 'string' && k) : []
+          for (const k of sensitiveKeys) env[k] = secret
+        }
+      }
+    } else if (opts.requireCredential) {
+      throw new Error('该分身尚未配置 API Key，请先补全密钥')
+    }
+    if (opts.codexOverlay && typeof opts.codexOverlay === 'object') {
+      const overlay = writeCodexOverlay(opts.codexOverlay)
+      if (!overlay.ok) throw new Error(`无法写入 Codex profile：${overlay.reason}`)
+    }
+    if (opts.requireCredential && typeof opts.credentialRef === 'string' && opts.credentialRef) {
+      registerOwnedResource({
+        kind: 'credential',
+        id: opts.credentialRef,
+        cloneId: opts.cloneId || opts.codexOverlay?.cloneId || opts.credentialRef.replace(/^ringcode:clone:/, ''),
+      })
     }
     const cwd = opts.cwd ? assertAllowedCwd(opts.cwd) : undefined
     const resolved = resolvePtyExecutable(exe)
@@ -69,7 +109,11 @@ export function registerPtyHandlers(): void {
         COLORTERM: env.COLORTERM || 'truecolor',
       },
     })
-    const managed: ManagedPty = { process: p, resize: new PtyResizeGate(p) }
+    const managed: ManagedPty = {
+      process: p,
+      resize: new PtyResizeGate(p),
+      cloneId: typeof opts.cloneId === 'string' ? opts.cloneId : undefined,
+    }
     procs.set(id, managed)
     p.onData((data) => {
       managed.resize.onData()
@@ -105,6 +149,14 @@ export function registerPtyHandlers(): void {
       procs.delete(id)
     }
   })
+}
+
+export function listRunningCloneIds(): string[] {
+  return [...new Set([...procs.values()].map((item) => item.cloneId).filter((id): id is string => !!id))]
+}
+
+export function hasRunningPty(): boolean {
+  return procs.size > 0
 }
 
 /** 应用退出时清理所有 PTY 子进程 */

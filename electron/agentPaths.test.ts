@@ -20,4 +20,17 @@ describe('knownWindowsAgentPaths', () => {
     expect(paths).toContain('C:\\Users\\demo\\AppData\\Roaming\\npm\\opencode.cmd')
     expect(paths).toContain('C:\\Users\\demo\\scoop\\shims\\opencode.exe')
   })
+
+  it('识别 OpenAI 桌面版 Codex 的 bin 哈希目录和 CODEX_CLI_PATH', () => {
+    const paths = knownWindowsAgentPaths(
+      'codex',
+      {
+        LOCALAPPDATA: 'C:\\Users\\demo\\AppData\\Local',
+        CODEX_CLI_PATH: 'C:\\pinned\\codex.exe',
+      },
+      () => ['7ac07f4ce733f89a'],
+    )
+    expect(paths).toContain('C:\\pinned\\codex.exe')
+    expect(paths).toContain('C:\\Users\\demo\\AppData\\Local\\OpenAI\\Codex\\bin\\7ac07f4ce733f89a\\codex.exe')
+  })
 })

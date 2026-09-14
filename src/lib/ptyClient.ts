@@ -10,6 +10,12 @@ export interface SpawnOpts {
   rows: number
   credentialRef?: string
   sensitiveEnvKeys?: string[]
+  unsetEnvKeys?: string[]
+  credentialEnv?: string
+  requireCredential?: boolean
+  extraEnv?: Record<string, string>
+  cloneId?: string
+  codexOverlay?: { cloneId: string; profileName: string; content: string }
 }
 
 type DataCb = (tabId: string, data: string) => void

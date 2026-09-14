@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useAppStore, uid } from '@/store/useAppStore'
 import { listAgents, seedProfilesFromAgents } from '@/lib/agents'
-import { permissionChoicesFor, resolveLaunchPermission } from '@/lib/agentLaunch'
+import { isCloneAgent, cloneableSource } from '@/lib/agentFamily'
+import {
+  createCloneAgent,
+  createCloneProfile,
+  prepareImportedClone,
+  validateCloneCommandName,
+  validateCloneDisplayName,
+} from '@/lib/agentClone'
+import { permissionChoicesFor, resolveCurrentLaunchConfig, resolveLaunchPermission } from '@/lib/agentLaunch'
+import { syncCloneResources } from '@/lib/cloneSync'
+import { setCleanupGate } from '@/lib/cleanupGate'
+import { runningAiTerminals } from '@/lib/runningAi'
+import { appendAgentPreference, moveAgentOrder, orderedAgents } from '@/lib/quickLaunch'
 import { DEFAULT_KEYMAP } from '@/lib/keymap'
 import { getCommands } from '@/lib/commands'
 import type { AgentDef, EnvVar, ThemeMode, ToolProfile } from '@/types'
@@ -31,6 +43,7 @@ export function SettingsModal() {
   const setKeymap = useAppStore((s) => s.setKeymap)
   const patchSettings = useAppStore((s) => s.patchSettings)
   const setCustomAgents = useAppStore((s) => s.setCustomAgents)
+  const deleteCloneAgent = useAppStore((s) => s.deleteCloneAgent)
   const showToast = useAppStore((s) => s.showToast)
   const profiles = useAppStore((s) => s.profiles)
   const upsertProfile = useAppStore((s) => s.upsertProfile)
@@ -45,6 +58,17 @@ export function SettingsModal() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [newAgentName, setNewAgentName] = useState('')
   const [newAgentCmd, setNewAgentCmd] = useState('')
+  const [cloneDraft, setCloneDraft] = useState<{
+    sourceId: string
+    name: string
+    commandName: string
+    url: string
+    model: string
+    key: string
+  } | null>(null)
+  const [cloneBusy, setCloneBusy] = useState(false)
+  const [launcherById, setLauncherById] = useState<Record<string, { ok: boolean; path?: string; reason?: string }>>({})
+  const [agentQuery, setAgentQuery] = useState('')
 
   useEffect(() => {
     if (open && tab === 'profiles' && settingsProfileId) setEditingId(settingsProfileId)
@@ -63,6 +87,13 @@ export function SettingsModal() {
       })
     }
   }, [open, profiles, getProfileForTool, upsertProfile])
+
+  useEffect(() => {
+    if (!open || tab !== 'agents') return
+    for (const agent of agents) {
+      if (isCloneAgent(agent)) void refreshLauncher(agent)
+    }
+  }, [open, tab, extra])
 
   if (!open) return null
 
@@ -83,6 +114,8 @@ export function SettingsModal() {
       setSetMap((m) => ({ ...m, [tool]: true }))
       setKeyDraft((d) => ({ ...d, [tool]: '' }))
       showToast('密钥已保存到系统凭据库', 'success')
+      const agent = agents.find((item) => item.id === tool)
+      if (agent && isCloneAgent(agent)) void syncClone(agent, { ...p, credentialSet: true })
     } else {
       showToast('保存失败', 'error')
     }
@@ -92,7 +125,26 @@ export function SettingsModal() {
     const api = window.ringcode
     const p = getProfileForTool(tool)
     if (!api || !p?.credentialRef) return
-    await api.credDelete(p.credentialRef)
+    const agent = agents.find((item) => item.id === tool)
+    if (isCloneAgent(agent)) {
+      if (warnRunning(tool)) return
+      if (!(await showConfirm(`清除分身「${agent.name}」的 Key？请同时关闭该分身的外部会话。配置和启动器会保留。`))) return
+      setCleanupGate(true)
+      try {
+        const result = await api.cloneClearKey(tool)
+        if (result.reason === 'running') {
+          showToast('请先结束该分身在 RingCode 中的终端', 'error')
+          return
+        }
+        if (!result.ok) {
+          showToast(`清 Key 未完全成功，可重试。${result.results.filter((item) => !item.ok).map((item) => item.reason).join('；')}`, 'error')
+        }
+      } finally {
+        setCleanupGate(false)
+      }
+    } else {
+      await api.credDelete(p.credentialRef)
+    }
     upsertProfile({ ...p, credentialSet: false })
     setSetMap((m) => ({ ...m, [tool]: false }))
     showToast('密钥已清除', 'info')
@@ -138,15 +190,57 @@ export function SettingsModal() {
         throw new Error('文件格式不正确')
       }
       let n = 0
+      const incomingAgents: AgentDef[] = Array.isArray(data.customAgents) ? data.customAgents : []
+      const nextAgents = [...(extra ?? [])]
+      const importedCloneOldIds = new Set<string>()
+      const importedIds: string[] = []
+      for (const raw of incomingAgents) {
+        if (!raw?.id) continue
+        if (isCloneAgent(raw)) {
+          const rawProfile = (data.profiles as ToolProfile[]).find((item) => item.tool === raw.id)
+          const prepared = prepareImportedClone(raw, rawProfile, {
+            agents: listAgents(nextAgents),
+            profiles,
+            newId: globalThis.crypto?.randomUUID?.() ?? uid(),
+          })
+          if (!prepared.ok) {
+            showToast(`跳过分身 ${raw.name ?? raw.id}：${prepared.message}`, 'error')
+            continue
+          }
+          importedCloneOldIds.add(raw.id)
+          nextAgents.push(prepared.agent)
+          importedIds.push(prepared.agent.id)
+          upsertProfile(prepared.profile)
+          void syncClone(prepared.agent, prepared.profile)
+          n++
+          continue
+        }
+        if (!nextAgents.some((item) => item.id === raw.id) && !agents.some((item) => item.id === raw.id)) {
+          nextAgents.push(raw)
+          importedIds.push(raw.id)
+        }
+      }
+      setCustomAgents(nextAgents)
+      if (importedIds.length) {
+        let prefs = useAppStore.getState().settings.quickLaunch
+        const listed = listAgents(nextAgents)
+        for (const id of importedIds) prefs = appendAgentPreference(prefs, listed, id)
+        patchSettings({ quickLaunch: prefs })
+      }
       for (const p of data.profiles) {
         if (!p || typeof p !== 'object' || !p.tool) continue
-        upsertProfile({ ...p, id: uid(), modelMode: p.modelMode === 'custom' ? 'custom' : 'default', credentialSet: false })
+        if (importedCloneOldIds.has(p.tool)) continue
+        const foreignCloneRef = typeof p.credentialRef === 'string' && p.credentialRef.startsWith('ringcode:clone:')
+        upsertProfile({
+          ...p,
+          id: uid(),
+          modelMode: p.modelMode === 'custom' ? 'custom' : 'default',
+          credentialSet: false,
+          credentialRef: foreignCloneRef ? undefined : p.credentialRef,
+        })
         n++
       }
-      if (Array.isArray(data.customAgents)) {
-        setCustomAgents([...(extra ?? []), ...data.customAgents.filter((a: AgentDef) => a?.id && !agents.some((x) => x.id === a.id))])
-      }
-      showToast(`已导入 ${n} 个配置方案（敏感凭据需重新设置）`, 'success')
+      showToast(`已导入 ${n} 项（分身使用新身份，敏感凭据需重新设置）`, 'success')
     } catch (e) {
       showToast('导入失败：' + (e as Error).message, 'error')
     }
@@ -157,7 +251,10 @@ export function SettingsModal() {
 
   const patchProfile = (patch: Partial<ToolProfile>) => {
     if (!editing) return
-    upsertProfile({ ...editing, ...patch })
+    const next = { ...editing, ...patch }
+    upsertProfile(next)
+    const agent = agents.find((item) => item.id === next.tool)
+    if (agent && isCloneAgent(agent)) void syncClone(agent, next)
   }
 
   const addProfile = (tool: string) => {
@@ -202,6 +299,9 @@ export function SettingsModal() {
       historyRoots: [],
     }
     setCustomAgents([...(extra ?? []), def])
+    patchSettings({
+      quickLaunch: appendAgentPreference(settings.quickLaunch, listAgents([...(extra ?? []), def]), def.id),
+    })
     if (!profiles.some((p) => p.tool === id)) {
       upsertProfile({
         id: `pf-${id}-default`,
@@ -219,6 +319,173 @@ export function SettingsModal() {
     setNewAgentName('')
     setNewAgentCmd('')
     showToast(`已添加 ${name}，可在顶栏启动`, 'success')
+  }
+
+  const syncCloneOverlay = async (agent: AgentDef, profile: ToolProfile) => {
+    if (agent.sourceFamily !== 'codex') return
+    const cfg = resolveCurrentLaunchConfig({
+      agent,
+      profile,
+      permissionByAgent: settings.launchPermissionByAgent ?? {},
+    })
+    if ('ok' in cfg && cfg.ok === false) return
+    if (!('overlay' in cfg) || !cfg.overlay) return
+    const result = await window.ringcode?.writeCodexOverlay?.(cfg.overlay)
+    if (result && !result.ok) showToast(`Codex profile 未更新：${result.reason}`, 'error')
+  }
+
+  const refreshLauncher = async (agent: AgentDef) => {
+    if (!isCloneAgent(agent) || !agent.commandName || !window.ringcode?.cloneLauncherStatus) return
+    const status = await window.ringcode.cloneLauncherStatus({ cloneId: agent.id, commandName: agent.commandName })
+    setLauncherById((current) => ({ ...current, [agent.id]: { ok: status.ok, path: status.path, reason: status.reason } }))
+  }
+
+  const syncClone = async (agent: AgentDef, profile: ToolProfile) => {
+    const permission = useAppStore.getState().settings.launchPermissionByAgent?.[agent.id]
+    const result = await syncCloneResources(agent, profile, permission)
+    setLauncherById((current) => ({
+      ...current,
+      [agent.id]: { ok: result.launcherOk, path: result.launcherPath, reason: result.launcherReason },
+    }))
+    if (!result.launcherOk) {
+      showToast(`系统命令未生成：${result.launcherReason ?? '未知原因'}`, 'error')
+    }
+    return result
+  }
+
+  const warnRunning = (agentId?: string) => {
+    const running = runningAiTerminals(useAppStore.getState().terminals, agentId)
+    if (!running.length) return false
+    const names = running.map((item) => item.title).join('、')
+    showToast(`请先结束 RingCode 中的相关终端后再试：${names}`, 'error')
+    return true
+  }
+
+  const startCopyClone = (source: AgentDef) => {
+    if (!cloneableSource(source)) {
+      showToast('只能从 Claude Code 或 Codex 原版复制分身', 'error')
+      return
+    }
+    setCloneDraft({
+      sourceId: source.id,
+      name: `${source.name} 分身`,
+      commandName: source.id === 'codex' ? 'cheap-codex' : 'cheap-claude',
+      url: '',
+      model: '',
+      key: '',
+    })
+  }
+
+  const submitClone = async () => {
+    if (!cloneDraft || cloneBusy) return
+    const source = cloneableSource(agents.find((item) => item.id === cloneDraft.sourceId))
+    if (!source) {
+      showToast('原版 Agent 不存在', 'error')
+      return
+    }
+    const nameCheck = validateCloneDisplayName(cloneDraft.name)
+    if (!nameCheck.ok) {
+      showToast(nameCheck.message, 'error')
+      return
+    }
+    const cmdCheck = validateCloneCommandName(cloneDraft.commandName, { agents, profiles })
+    if (!cmdCheck.ok) {
+      showToast(cmdCheck.message, 'error')
+      return
+    }
+    setCloneBusy(true)
+    try {
+      const id = globalThis.crypto?.randomUUID?.() ?? uid()
+      const def = createCloneAgent(source, { id, name: cloneDraft.name, commandName: cloneDraft.commandName })
+      const sourceProfile = getProfileForTool(source.id)
+      const profile = createCloneProfile(def, sourceProfile, {
+        baseUrl: cloneDraft.url,
+        model: cloneDraft.model,
+        modelMode: cloneDraft.model.trim() ? 'custom' : 'default',
+      })
+      setCustomAgents([...(extra ?? []), def])
+      upsertProfile(profile)
+      patchSettings({
+        quickLaunch: appendAgentPreference(settings.quickLaunch, listAgents([...(extra ?? []), def]), def.id),
+      })
+      const api = window.ringcode
+      if (profile.credentialRef) {
+        await api?.registerOwnedResource?.({ kind: 'credential', id: profile.credentialRef, cloneId: id })
+      }
+      if (cloneDraft.key.trim() && profile.credentialRef && api) {
+        const ok = await api.credSet(profile.credentialRef, cloneDraft.key.trim())
+        if (ok) {
+          upsertProfile({ ...profile, credentialSet: true })
+          setSetMap((m) => ({ ...m, [id]: true }))
+        } else showToast('密钥保存失败，可稍后在「密钥」页补全', 'error')
+      }
+      await syncClone(def, { ...profile, credentialSet: !!cloneDraft.key.trim() })
+      if (def.commandName === 'hjcodex') {
+        showToast('命令名 hjcodex 可用，但旧 PowerShell 函数可能优先命中。可用 Get-Command hjcodex -All 诊断，或用完整路径调用。', 'info')
+      }
+      if (api) {
+        const pathTaken = await api.envWhich(def.commandName!)
+        if (pathTaken) {
+          showToast(`已创建 ${def.name}。PATH 中已有同名命令，系统启动器可能被挡住，可用完整路径调用。`, 'info')
+        } else {
+          showToast(`已创建分身 ${def.name}（${def.commandName}）。未自动修改 PATH，可打开启动器目录自行加入。`, 'success')
+        }
+      } else {
+        showToast(`已创建分身 ${def.name}`, 'success')
+      }
+      setCloneDraft(null)
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : String(err), 'error')
+    } finally {
+      setCloneBusy(false)
+    }
+  }
+
+  const patchCloneAgent = (agent: AgentDef, patch: Partial<AgentDef>) => {
+    const next = extra.map((item) => (item.id === agent.id ? { ...item, ...patch } : item))
+    setCustomAgents(next)
+    const updated = next.find((item) => item.id === agent.id)
+    const profile = updated ? getProfileForTool(updated.id) : undefined
+    if (updated && profile) void syncClone(updated, profile)
+  }
+
+  const removeClone = async (agent: AgentDef) => {
+    if (warnRunning(agent.id)) return
+    if (!(await showConfirm(`删除分身「${agent.name}」？将删除其配置、Key 和本应用所属文件，保留原生历史。请同时关闭该分身的外部会话。`))) return
+    setCleanupGate(true)
+    try {
+      const result = await window.ringcode?.cloneDelete(agent.id)
+      if (result?.reason === 'running') {
+        showToast('请先结束该分身在 RingCode 中的终端', 'error')
+        return
+      }
+      deleteCloneAgent(agent.id)
+      if (result && !result.ok) showToast('分身已从应用移除，但部分文件清理失败，可稍后重试', 'error')
+      else showToast('分身已删除。旧会话将回退到原版入口', 'success')
+    } finally {
+      setCleanupGate(false)
+    }
+  }
+
+  const clearAllSecrets = async () => {
+    if (warnRunning()) return
+    if (!(await showConfirm('一键全清 RingCode 凭据和所属启动器/profile 文件？分身设置会保留。请关闭全部相关外部会话。'))) return
+    setCleanupGate(true)
+    try {
+      const result = await window.ringcode?.cloneClearAll()
+      if (result?.reason === 'running') {
+        showToast('请先结束全部 RingCode AI 终端', 'error')
+        return
+      }
+      for (const profile of useAppStore.getState().profiles) {
+        if (profile.credentialRef) upsertProfile({ ...profile, credentialSet: false })
+      }
+      setSetMap({})
+      if (result && !result.ok) showToast('全清部分失败，可重试。未宣告成功。', 'error')
+      else showToast('已清除凭据和所属文件。补 Key 后将重建启动器。', 'success')
+    } finally {
+      setCleanupGate(false)
+    }
   }
 
   const keymap = { ...DEFAULT_KEYMAP, ...(settings.keymap ?? {}) }
@@ -307,6 +574,15 @@ export function SettingsModal() {
                 清除本地数据
               </button>
             </div>
+            <div className="settings-row">
+              <div>
+                <div className="label">凭据与所属文件</div>
+                <div className="desc">全清删除 RingCode 凭据及本应用启动器/Codex profile，保留分身设置。请先结束全部 AI 终端并关闭外部会话。</div>
+              </div>
+              <button className="btn danger" onClick={() => void clearAllSecrets()}>
+                一键全清
+              </button>
+            </div>
             <div className="settings-row" style={{ borderBottom: 'none' }}>
               <div>
                 <div className="label">关于</div>
@@ -391,6 +667,31 @@ export function SettingsModal() {
                     )}
                   </>
                 ) : null}
+                {editingAgent && isCloneAgent(editingAgent) && (
+                  <>
+                    <label className="settings-field">
+                      显示名
+                      <input
+                        style={inputStyle}
+                        value={editingAgent.name}
+                        onChange={(e) => patchCloneAgent(editingAgent, { name: e.target.value })}
+                      />
+                    </label>
+                    <label className="settings-field">
+                      命令名
+                      <input style={inputStyle} value={editingAgent.commandName ?? ''} disabled />
+                    </label>
+                    <label className="settings-field">
+                      API URL
+                      <input
+                        style={inputStyle}
+                        value={editing.baseUrl ?? ''}
+                        onChange={(e) => patchProfile({ baseUrl: e.target.value })}
+                        placeholder="留空则走官方线路"
+                      />
+                    </label>
+                  </>
+                )}
                 <label className="settings-field">
                   终端策略
                   <select
@@ -485,42 +786,142 @@ export function SettingsModal() {
         {tab === 'agents' && (
           <>
             <div className="desc" style={{ marginBottom: 10 }}>
-              已内置主流 AI CLI。如需接入其它工具，填入名称与命令即可添加自定义 Agent，将在顶栏、启动栏和历史中可用。
+              可从 Claude Code / Codex 复制分身。隐藏后不出现在顶部快速启动区，仍可通过历史、命令面板和快捷键使用。系统命令生成在 %USERPROFILE%\.ringcode\bin，不自动改 PATH。
             </div>
-            {agents.map((a) => {
+            <div className="search-box" style={{ marginBottom: 10 }}>
+              <span aria-hidden="true">⌕</span>
+              <input value={agentQuery} onChange={(e) => setAgentQuery(e.target.value)} placeholder="搜索 Agent 显示名 / 命令名" />
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+              <button className="btn" onClick={() => void window.ringcode?.cloneOpenBin?.()}>
+                打开启动器目录
+              </button>
+              <button
+                className="btn"
+                onClick={() => patchSettings({ quickLaunch: { hiddenAgentIds: [], agentOrder: [] } })}
+              >
+                恢复默认显示与顺序
+              </button>
+            </div>
+            {orderedAgents(agents, settings.quickLaunch)
+              .filter((a) => {
+                const q = agentQuery.trim().toLowerCase()
+                if (!q) return true
+                return `${a.name}\n${a.command}\n${a.commandName ?? ''}`.toLowerCase().includes(q)
+              })
+              .map((a) => {
               const selectedPermission = resolveLaunchPermission(a, settings.launchPermissionByAgent ?? {})
+              const clone = isCloneAgent(a)
+              const profile = getProfileForTool(a.id)
+              const hidden = (settings.quickLaunch?.hiddenAgentIds ?? []).includes(a.id)
+              const order = orderedAgents(agents, settings.quickLaunch).map((item) => item.id)
+              const launcher = launcherById[a.id]
               return (
                 <div key={a.id} className="settings-row">
                   <div>
                     <div className="label">{a.name}</div>
                     <div className="desc">
-                      {a.command}
+                      {clone ? `${a.commandName} · 分身自 ${a.sourceFamily}` : a.command}
                       {a.shortcutDigit ? ` · Ctrl+Shift+${a.shortcutDigit}` : ''}
-                      {extra.some((x) => x.id === a.id) ? ' · 自定义' : ' · 内置'}
+                      {clone ? '' : extra.some((x) => x.id === a.id) ? ' · 自定义' : ' · 内置'}
                     </div>
+                    {clone ? (
+                      <div className="desc">
+                        {launcher?.ok
+                          ? `系统命令已生成：${launcher.path}`
+                          : `系统命令未生成${launcher?.reason ? `：${launcher.reason}` : ''}`}
+                      </div>
+                    ) : null}
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    <label className="desc" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <input
+                        type="checkbox"
+                        checked={!hidden}
+                        onChange={() => {
+                          const hiddenAgentIds = hidden
+                            ? (settings.quickLaunch?.hiddenAgentIds ?? []).filter((id) => id !== a.id)
+                            : [...(settings.quickLaunch?.hiddenAgentIds ?? []), a.id]
+                          patchSettings({ quickLaunch: { hiddenAgentIds, agentOrder: settings.quickLaunch?.agentOrder ?? order } })
+                        }}
+                      />
+                      快速启动中显示
+                    </label>
+                    <button
+                      className="btn"
+                      disabled={order[0] === a.id}
+                      onClick={() =>
+                        patchSettings({
+                          quickLaunch: {
+                            hiddenAgentIds: settings.quickLaunch?.hiddenAgentIds ?? [],
+                            agentOrder: moveAgentOrder(order, a.id, -1),
+                          },
+                        })
+                      }
+                    >
+                      上移
+                    </button>
+                    <button
+                      className="btn"
+                      disabled={order[order.length - 1] === a.id}
+                      onClick={() =>
+                        patchSettings({
+                          quickLaunch: {
+                            hiddenAgentIds: settings.quickLaunch?.hiddenAgentIds ?? [],
+                            agentOrder: moveAgentOrder(order, a.id, 1),
+                          },
+                        })
+                      }
+                    >
+                      下移
+                    </button>
                     {a.permission && (
                       <div className="seg" title="直接启动时使用的权限模式">
                         {permissionChoicesFor(a).map((choice) => (
                           <button
                             key={choice}
                             className={`${selectedPermission === choice ? 'active' : ''}${choice === 'dangerous' ? ' danger' : ''}`}
-                            onClick={() =>
+                            onClick={() => {
                               patchSettings({
                                 launchPermissionByAgent: {
                                   ...(settings.launchPermissionByAgent ?? {}),
                                   [a.id]: choice,
                                 },
                               })
-                            }
+                              if (clone && profile) void syncClone(a, profile)
+                            }}
                           >
                             {choice === 'default' ? '默认' : choice === 'auto' ? 'Auto' : '危险'}
                           </button>
                         ))}
                       </div>
                     )}
-                    {extra.some((x) => x.id === a.id) && (
+                    {cloneableSource(a) && (
+                      <button className="btn" onClick={() => startCopyClone(a)}>
+                        复制分身
+                      </button>
+                    )}
+                    {clone && profile && (
+                      <button className="btn" onClick={() => openSettings('profiles', profile.id)}>
+                        编辑配置
+                      </button>
+                    )}
+                    {clone && (
+                      <button className="btn" onClick={() => { if (profile) void syncClone(a, profile) }}>
+                        重试生成命令
+                      </button>
+                    )}
+                    {clone && profile?.credentialSet && (
+                      <button className="btn" onClick={() => void clearKey(a.id)}>
+                        清 Key
+                      </button>
+                    )}
+                    {clone && (
+                      <button className="btn danger" onClick={() => void removeClone(a)}>
+                        删除分身
+                      </button>
+                    )}
+                    {extra.some((x) => x.id === a.id) && !clone && (
                       <button className="btn danger" onClick={() => setCustomAgents(extra.filter((x) => x.id !== a.id))}>
                         移除
                       </button>
@@ -529,6 +930,40 @@ export function SettingsModal() {
                 </div>
               )
             })}
+            {cloneDraft && (
+              <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div className="label">复制 {agents.find((item) => item.id === cloneDraft.sourceId)?.name} 分身</div>
+                <div className="desc">显示名和命令名必填。Key、URL、模型可后补。命令名创建后不可改。</div>
+                <label className="settings-field">
+                  显示名
+                  <input style={inputStyle} value={cloneDraft.name} onChange={(e) => setCloneDraft({ ...cloneDraft, name: e.target.value })} />
+                </label>
+                <label className="settings-field">
+                  命令名
+                  <input style={inputStyle} value={cloneDraft.commandName} onChange={(e) => setCloneDraft({ ...cloneDraft, commandName: e.target.value.toLowerCase() })} placeholder="cheap-codex" />
+                </label>
+                <label className="settings-field">
+                  API URL（选填）
+                  <input style={inputStyle} value={cloneDraft.url} onChange={(e) => setCloneDraft({ ...cloneDraft, url: e.target.value })} placeholder="留空则走官方线路" />
+                </label>
+                <label className="settings-field">
+                  模型（选填）
+                  <input style={inputStyle} value={cloneDraft.model} onChange={(e) => setCloneDraft({ ...cloneDraft, model: e.target.value })} placeholder="留空则跟随 CLI 默认" />
+                </label>
+                <label className="settings-field">
+                  API Key（选填）
+                  <input type="password" style={inputStyle} value={cloneDraft.key} onChange={(e) => setCloneDraft({ ...cloneDraft, key: e.target.value })} placeholder="可后补" />
+                </label>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button className="btn primary" disabled={cloneBusy} onClick={() => void submitClone()}>
+                    {cloneBusy ? '创建中…' : '创建分身'}
+                  </button>
+                  <button className="btn" onClick={() => setCloneDraft(null)}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            )}
             <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
               <input style={inputStyle} placeholder="名称，如 Cursor Agent" value={newAgentName} onChange={(e) => setNewAgentName(e.target.value)} />
               <input style={inputStyle} placeholder="命令，如 cursor-agent" value={newAgentCmd} onChange={(e) => setNewAgentCmd(e.target.value)} />

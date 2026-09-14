@@ -20,6 +20,15 @@ export function getCredential(key: string): string | null {
   }
 }
 
+export function deleteCredential(key: string): boolean {
+  if (typeof key !== 'string' || !key) return false
+  try {
+    return entry(key).deleteCredential()
+  } catch {
+    return false
+  }
+}
+
 export function registerCredHandlers(): void {
   ipcMain.handle('cred:set', async (_e, key: string, val: string) => {
     if (typeof key !== 'string' || typeof val !== 'string') return false
@@ -42,10 +51,6 @@ export function registerCredHandlers(): void {
 
   ipcMain.handle('cred:delete', async (_e, key: string) => {
     if (typeof key !== 'string') return false
-    try {
-      return entry(key).deleteCredential()
-    } catch {
-      return false
-    }
+    return deleteCredential(key)
   })
 }

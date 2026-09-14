@@ -2,7 +2,8 @@ import { useAppStore } from '@/store/useAppStore'
 import { useFsStore } from '@/store/useFsStore'
 import { isFsAccessSupported, pickDirectory } from '@/lib/fs'
 import { listAgents, agentById } from '@/lib/agents'
-import { prepareAgentLaunch } from '@/lib/agentLaunch'
+import { prepareCurrentEntryLaunch } from '@/lib/entryLaunch'
+import { beginLaunchAttempt } from '@/lib/launchAttempts'
 import { DEFAULT_KEYMAP } from '@/lib/keymap'
 
 export interface CommandDef {
@@ -55,34 +56,28 @@ export async function runCommand(id: string): Promise<void> {
     const agentId = id.slice(3)
     const agent = agentById(agentId, app.settings.customAgents ?? []) ?? { id: agentId }
     const workspace = app.workspaces.find((w) => w.id === app.activeWorkspaceId)
-    const profile = app.getProfileForTool(agentId, app.activeWorkspaceId ?? undefined)
     const api = window.ringcode
-    const prepared = await prepareAgentLaunch(
-      {
-        agent,
-        workspace,
-        profile,
-        permissionByAgent: app.settings.launchPermissionByAgent ?? {},
-        runtimeAvailable: !!api,
-      },
-      (command) => api!.envWhich(command),
-    )
     const name = 'name' in agent ? agent.name : agentId
-    if (!prepared.ok) {
-      if (prepared.openSettings) app.openSettings('profiles', profile?.id)
-      if (prepared.reason === 'workspace') app.showToast('请先打开工作区', 'error')
-      else if (prepared.reason === 'profile') app.showToast(`请先配置 ${name} 的启动命令`, 'error')
-      else if (prepared.reason === 'executable') app.showToast(`未找到 ${profile?.command || name}，请检查可执行文件配置`, 'error')
-      else app.showToast('当前环境无法启动本地 CLI', 'error')
+    if (!workspace) {
+      app.showToast('请先打开工作区', 'error')
       return
     }
+    const prepared = await prepareCurrentEntryLaunch(agentId, workspace.path, workspace.id)
+    if (!prepared) return
     try {
       await api!.setWorkspaceRoots(app.workspaces.map((w) => w.path).filter(Boolean))
     } catch {
       /* TerminalView 会再次登记；失败时由终端显示具体原因 */
     }
-    const session = app.createSession(agentId, prepared.profileId, prepared.cwd, { permission: prepared.permission })
-    app.newTerminal('ai', { tool: agentId, sessionId: session.id, action: 'new', permission: prepared.permission })
+    const session = app.createSession(agentId, prepared.profileId, workspace.path, { permission: prepared.permission })
+    const attemptId = beginLaunchAttempt(session.id, agentId, undefined)
+    app.newTerminal('ai', {
+      tool: agentId,
+      sessionId: session.id,
+      action: 'new',
+      permission: prepared.permission,
+      launchAttemptId: attemptId,
+    })
     if (app.layout.bottomHidden) app.togglePanel('bottom')
     const permissionHint =
       prepared.permission === 'dangerous' ? '（危险模式）' : prepared.permission === 'auto' ? '（Auto）' : ''

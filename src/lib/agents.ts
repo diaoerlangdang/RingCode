@@ -143,9 +143,11 @@ export function agentLabel(id: string, extra: AgentDef[] = []): string {
 /**
  * Codex 对 WT_SESSION 使用整屏换行策略，避免局部 DEC scroll region 在 xterm.js 中丢失历史行。
  * 值只需非空；用户配置方案中的同名环境变量仍可覆盖。
+ * 分身按家族判断，不能只用分身 id。
  */
-export function terminalCompatibilityEnv(agentId: string, terminalId: string): Record<string, string> {
-  return agentId === 'codex' ? { WT_SESSION: `RingCode-${terminalId}` } : {}
+export function terminalCompatibilityEnv(agentId: string, terminalId: string, family?: string): Record<string, string> {
+  const id = family || agentId
+  return id === 'codex' ? { WT_SESSION: `RingCode-${terminalId}` } : {}
 }
 
 function hasOwnPermissionFlags(args: string[], agent: AgentDef): boolean {
@@ -201,6 +203,8 @@ export function buildLaunchArgs(
     initialPrompt?: string
     model?: string
     modelMode?: 'default' | 'custom'
+    /** Codex 分身 overlay 名，作为全局 --profile 前置 */
+    codexProfile?: string
     /** @deprecated */ resumeId?: string
     /** @deprecated */ resume?: boolean
   } = {},
@@ -208,7 +212,8 @@ export function buildLaunchArgs(
   const profile = parseArgs(profileArgs)
   const action = opts.action ?? (opts.resume || opts.resumeId ? 'resume' : 'new')
   const nativeSessionId = opts.nativeSessionId ?? opts.resumeId
-  const args = [...sessionArgsFor(agent, action, nativeSessionId), ...profile]
+  const profileFlag = opts.codexProfile?.trim() ? ['--profile', opts.codexProfile.trim()] : []
+  const args = [...profileFlag, ...sessionArgsFor(agent, action, nativeSessionId), ...profile]
 
   if (opts.modelMode === 'custom' && opts.model?.trim()) {
     const flags = templateFlags(agent.modelArgs)
