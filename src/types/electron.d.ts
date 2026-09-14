@@ -41,6 +41,10 @@ export interface RingCodeApi {
   fsListDrives: () => Promise<string[]>
   fsStat: (rootPath: string, segments: string[]) => Promise<{ mtime: number; size: number; isDir: boolean } | null>
   fsCopy: (rootPath: string, segments: string[], destName: string) => Promise<void>
+  /** 复制文件/文件夹（递归）到目标目录，destSegments 为完整目标路径（含名称） */
+  fsCopyTo: (rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) => Promise<void>
+  /** 移动（剪切）文件/文件夹到目标目录，destSegments 为完整目标路径（含名称） */
+  fsMoveTo: (rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) => Promise<void>
   fsWatch: (rootPath: string) => Promise<boolean>
   fsUnwatch: () => Promise<void>
   onFsChanged: (cb: (payload: { event: string; filename: string; rootPath: string }) => void) => () => void

@@ -42,6 +42,10 @@ const api = {
   fsStat: (rootPath: string, segments: string[]) => ipcRenderer.invoke('fs:stat', rootPath, segments),
   fsCopy: (rootPath: string, segments: string[], destName: string) =>
     ipcRenderer.invoke('fs:copy', rootPath, segments, destName),
+  fsCopyTo: (rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) =>
+    ipcRenderer.invoke('fs:copyTo', rootPath, srcSegments, destRootPath, destSegments),
+  fsMoveTo: (rootPath: string, srcSegments: string[], destRootPath: string, destSegments: string[]) =>
+    ipcRenderer.invoke('fs:moveTo', rootPath, srcSegments, destRootPath, destSegments),
   fsWatch: (rootPath: string) => ipcRenderer.invoke('fs:watch', rootPath),
   fsUnwatch: () => ipcRenderer.invoke('fs:unwatch'),
   onFsChanged: (cb: (payload: { event: string; filename: string; rootPath: string }) => void) => {
