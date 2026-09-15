@@ -43,7 +43,7 @@
 
 - 🤖 **多 Agent 原生聚合驱动**
   - 原生适配并深度集成主流 AI 编程 Agent：**Claude Code**、**Codex CLI**、**OpenCode**、**Antigravity CLI**、**Hermes**，并支持自定义扩充。
-  - **Claude / Codex 分身**：从原版复制入口，独立 Key、URL、模型与权限；会话历史仍共用默认家目录。创建/编辑时可拉取模型列表。继续会话默认上次入口，可改选同家族原版或另一个分身。
+  - **Claude / Codex 分身**：从原版复制入口，独立 Key、URL、模型与权限；会话历史仍共用默认家目录。创建/编辑时可拉取模型列表。同一会话可在分身与原版之间双向切换，继续时始终使用本次所选入口的当前配置。
   - 顶栏最多 4 个具名入口，其余收入「更多」；显隐同时作用于顶栏和更多列表，不影响历史、命令面板与快捷键。
   - 多终端 Tab 自由切换与分屏管理，各会话独立维持生命周期。
 
@@ -131,7 +131,7 @@ npm run electron:build
 | Agent | 推荐安装 / 获取方式 | 核心适配特性 |
 | --- | --- | --- |
 | **Claude Code** | `npm install -g @anthropic-ai/claude-code` | 解析 `history.jsonl`，支持 `--resume` / `--fork-session`；可复制分身 |
-| **Codex** | 官方 Codex CLI（`codex`） | `--resume` / `fork`；分身用 overlay，不改用户主 `config.toml` |
+| **Codex** | 官方 Codex CLI（`codex`） | `resume` / `fork`；分身用独立 overlay，原版续聊显式切回官方 provider，不改用户主 `config.toml` |
 | **OpenCode** | 参考官方 OpenCode CLI 安装文档 | 自动捕获会话历史 |
 | **Antigravity CLI** | 安装 Google Antigravity 官方 CLI (`agy`) | 自动索引 `transcript.jsonl` |
 | **Hermes** | 接入 Hermes 自动化 Agent 终端 | 自动化调度 |

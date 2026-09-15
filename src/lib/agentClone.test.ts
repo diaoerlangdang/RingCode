@@ -80,7 +80,7 @@ describe('当前配置与环境', () => {
     expect(official.content).not.toMatch(/^model = /m)
   })
 
-  it('原版 Codex 带上 ringcode-clone 兼容 overlay，便于删除分身后继续会话', () => {
+  it('原版 Codex 继续分身会话时强制切回官方 provider', () => {
     const profile = {
       id: 'pf-codex-default',
       name: '默认 · Codex',
@@ -102,10 +102,11 @@ describe('当前配置与环境', () => {
     if ('ok' in cfg) return
     expect(cfg.requireCredential).toBe(false)
     expect(cfg.codexProfile).toBe('ringcode-provider-alias')
+    expect(cfg.codexProvider).toBe('openai')
     expect(cfg.overlay?.cloneId).toBe('codex-provider-alias')
-    expect(cfg.overlay?.content).toContain('[model_providers.ringcode-clone]')
-    expect(cfg.overlay?.content).toContain('requires_openai_auth = true')
-    expect(cfg.overlay?.content).not.toMatch(/^model_provider = /m)
+    expect(cfg.overlay?.content).toContain('model_provider = "openai"')
+    expect(cfg.overlay?.content).not.toContain('[model_providers.ringcode-clone]')
+    expect(cfg.overlay?.content).not.toContain('requires_openai_auth')
     expect(cfg.overlay?.content).not.toContain('RINGCODE_CODEX_KEY')
   })
 
@@ -153,6 +154,48 @@ describe('当前配置与环境', () => {
     expect(cfg.claudeSettings?.env.ANTHROPIC_BASE_URL).toBe('https://x')
     expect(cfg.claudeSettings?.env.ANTHROPIC_MODEL).toBe('sonnet-x')
     expect(resolveLaunchPermission(clone, {})).toBe('auto')
+  })
+
+  it('Claude 原版与分身恢复同一会话时按本次入口隔离配置', () => {
+    const clone = createCloneAgent(sourceClaude, { id: 'claude-switch', name: '线路 A', commandName: 'claude-switch' })
+    const cloneProfile = createCloneProfile(clone, undefined, {
+      baseUrl: 'https://proxy.example/anthropic',
+      model: 'clone-model',
+      modelMode: 'custom',
+    })
+    const originalProfile = {
+      id: 'pf-claude-default',
+      name: '默认 · Claude Code',
+      scope: 'global' as const,
+      tool: 'claude',
+      command: 'claude',
+      args: '',
+      model: '',
+      modelMode: 'default' as const,
+      envs: [],
+      terminalStrategy: 'new' as const,
+    }
+    const cloneConfig = resolveCurrentLaunchConfig({ agent: clone, profile: cloneProfile, permissionByAgent: {} })
+    const originalConfig = resolveCurrentLaunchConfig({ agent: sourceClaude, profile: originalProfile, permissionByAgent: {} })
+    expect('ok' in cloneConfig && cloneConfig.ok === false).toBe(false)
+    expect('ok' in originalConfig && originalConfig.ok === false).toBe(false)
+    if ('ok' in cloneConfig || 'ok' in originalConfig) return
+
+    expect(buildLaunchArgs(clone, '', { action: 'resume', nativeSessionId: 'same-session' })).toEqual([
+      '--resume',
+      'same-session',
+    ])
+    expect(buildLaunchArgs(sourceClaude, '', { action: 'resume', nativeSessionId: 'same-session' })).toEqual([
+      '--resume',
+      'same-session',
+    ])
+    expect(cloneConfig.claudeSettings?.env).toMatchObject({
+      ANTHROPIC_BASE_URL: 'https://proxy.example/anthropic',
+      ANTHROPIC_MODEL: 'clone-model',
+    })
+    expect(cloneConfig.envPlan.injectKey).toBe('ANTHROPIC_AUTH_TOKEN')
+    expect(originalConfig.claudeSettings).toBeUndefined()
+    expect(originalConfig.envPlan).toEqual({ unsetKeys: [], extraEnv: {} })
   })
 })
 

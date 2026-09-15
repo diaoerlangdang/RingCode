@@ -2,7 +2,7 @@
 
 > 文档状态：需求草案 v0.2（历史规格，不是当前产品清单）  
 > 更新日期：2026-08-18  
-> 实现对照：2026-09-14。已落地能力以代码、`docs/进度.md` 和 `docs/分身Agent规划.md` 为准。其后变更包括：内置 OpenCode / Antigravity；Claude/Codex 分身（含模型列表、Claude `--settings` 覆盖、删除 Codex 分身后原版 resume 的 provider 别名）；顶栏最多 4 个具名入口 +「更多」；点入口直接启动（无 LaunchModal）；缺 Key 拦截；GitHub 检查更新（不自动安装）；发版附件 ASCII 名见 `docs/发版打包.md`。  
+> 实现对照：2026-09-15。已落地能力以代码、`docs/进度.md` 和 `docs/分身Agent规划.md` 为准。其后变更包括：内置 OpenCode / Antigravity；Claude/Codex 分身（含模型列表、Claude `--settings` 覆盖、原版与分身双向续聊；原版 Codex 续聊显式切回官方 provider）；顶栏最多 4 个具名入口 +「更多」；点入口直接启动（无 LaunchModal）；缺 Key 拦截；GitHub 检查更新（不自动安装）；免安装 ZIP 与 NSIS 安装包的 ASCII 附件名见 `docs/发版打包.md`。
 > 产品代号：RingCode  
 > 目标平台：Windows 10 (1809+) / 11 x64 原生桌面端，不依赖 WSL  
 > 勘误：同日关闭第 14 节待确认项，修正第 13 节与优先级表不一致之处，并补录 Auto 模式与磁盘历史（HIS-015）。P0/P1 定义不变。
@@ -551,5 +551,5 @@ Electron Main
 2. **PDF 预览**：保持 EDT-006 为 P1，不升为 P0。
 3. **工具安装**：Claude Code / Codex 安装完全走官方流程。应用只做检测、展示路径/未安装状态、重新检测和手动指定可执行文件，不代为安装。
 4. **对话记录范围**：金刚琢会话索引记录本应用启动的会话。另按 HIS-015 只读导入工具在本机留下的公开 jsonl 历史；不解析未公开内部数据库。
-5. **分发形态**：首版只提供 NSIS 标准安装包，不做便携版 `exe`。
-6. **继续会话**：通过扫描 Claude Code / Codex 公开会话目录获取会话标识，再调用对应 `--resume`。工具升级若改变存储结构，自动退回「基于此记录新建会话」并提示用户。
+5. **分发形态**：0.4.1 同时提供 NSIS 标准安装包和免安装 ZIP；不提供单文件便携版 `exe`。
+6. **继续会话**：通过扫描 Claude Code / Codex 公开会话目录获取会话标识，再调用对应原生命令（Claude Code 为 `--resume`，Codex 为 `resume` 子命令）。工具升级若改变存储结构，自动退回「基于此记录新建会话」并提示用户。

@@ -39,6 +39,7 @@ export interface CurrentLaunchConfig {
   requireCredential: boolean
   envPlan: LaunchEnvPlan
   codexProfile?: string
+  codexProvider?: string
   overlay?: { profileName: string; content: string; cloneId: string }
   claudeSettings?: {
     cloneId: string
@@ -91,6 +92,7 @@ export function resolveCurrentLaunchConfig(input: {
     requireCredential: clone,
     envPlan,
     codexProfile: overlay?.profileName ?? (clone && family === 'codex' ? cloneCodexProfileName(input.agent.id) : undefined),
+    codexProvider: family === 'codex' && !clone ? 'openai' : undefined,
     overlay,
     claudeSettings,
   }

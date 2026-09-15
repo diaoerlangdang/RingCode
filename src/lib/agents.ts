@@ -205,6 +205,8 @@ export function buildLaunchArgs(
     modelMode?: 'default' | 'custom'
     /** Codex 分身 overlay 名，作为全局 --profile 前置 */
     codexProfile?: string
+    /** 恢复/分叉时显式覆盖 Codex provider，避免沿用来源会话的自定义 provider。 */
+    codexProvider?: string
     /** @deprecated */ resumeId?: string
     /** @deprecated */ resume?: boolean
   } = {},
@@ -213,7 +215,11 @@ export function buildLaunchArgs(
   const action = opts.action ?? (opts.resume || opts.resumeId ? 'resume' : 'new')
   const nativeSessionId = opts.nativeSessionId ?? opts.resumeId
   const profileFlag = opts.codexProfile?.trim() ? ['--profile', opts.codexProfile.trim()] : []
-  const args = [...profileFlag, ...sessionArgsFor(agent, action, nativeSessionId), ...profile]
+  const providerFlag =
+    action !== 'new' && opts.codexProvider?.trim()
+      ? ['-c', 'model_provider=' + JSON.stringify(opts.codexProvider.trim())]
+      : []
+  const args = [...profileFlag, ...providerFlag, ...sessionArgsFor(agent, action, nativeSessionId), ...profile]
 
   if (opts.modelMode === 'custom' && opts.model?.trim()) {
     const flags = templateFlags(agent.modelArgs)

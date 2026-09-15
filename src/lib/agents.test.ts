@@ -114,6 +114,13 @@ describe('agent registry', () => {
     ])
     expect(buildLaunchArgs(codex, '', { action: 'resume', nativeSessionId: 'x1' })).toEqual(['resume', 'x1'])
     expect(buildLaunchArgs(codex, '', { action: 'fork', nativeSessionId: 'x1' })).toEqual(['fork', 'x1'])
+    expect(buildLaunchArgs(codex, '', { action: 'resume', nativeSessionId: 'x1', codexProvider: 'openai' })).toEqual([
+      '-c',
+      'model_provider="openai"',
+      'resume',
+      'x1',
+    ])
+    expect(buildLaunchArgs(codex, '', { action: 'new', codexProvider: 'openai' })).toEqual([])
     expect(buildLaunchArgs(hermes, '', { action: 'resume', nativeSessionId: 'h1' })).toEqual(['--resume', 'h1'])
     expect(supportsNativeFork(claude)).toBe(true)
     expect(supportsNativeFork(codex)).toBe(true)

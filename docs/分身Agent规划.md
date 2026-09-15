@@ -1,9 +1,9 @@
 # Agent 分身规划
 
-> 状态：**分身与快速启动主路径已实现并验收（2026-09-14 用户确认）。** 空闲一键全清未对真实家目录代跑，见第 13 节。  
-> 日期：2026-09-11（文档对照 2026-09-14）  
+> 状态：**分身与快速启动主路径已实现并验收（2026-09-14 用户确认；2026-09-15 双向续聊路由复核）。** 空闲一键全清未对真实家目录代跑，见第 13 节。
+> 日期：2026-09-11（文档对照 2026-09-15）
 > 来源：初版规划、只读评审及用户逐项确认  
-> 当前范围：实现已落地；勾选与缺口以第 11、12 节为准。未经另行要求不 push。  
+> 当前范围：实现已落地；勾选与缺口以第 11、12 节为准。
 > 对照：`docs/会话历史与恢复改造.md`、`docs/历史会话目录分组.md`、`docs/进度.md`、`docs/发版打包.md`、`src/lib/agents.ts`
 
 ## 1. 一句话
@@ -110,7 +110,7 @@ Claude/Codex 的规范关联键为 `family + nativeSessionId`；各家族默认�
 - Claude 分身默认：URL 空时清继承 BASE_URL/AUTH_TOKEN，仅注 ANTHROPIC_API_KEY；URL 非空时设置 ANTHROPIC_BASE_URL，清 API_KEY，仅注 ANTHROPIC_AUTH_TOKEN。设置可覆盖凭据变量，但每次只选一个注入目标，不把同一 Key 填入全部敏感变量。
 - Claude Code 会用 `~/.claude/settings.json` 的 `env` **盖掉**进程注入的 `ANTHROPIC_*`。分身启动时写入 `~\.ringcode\claude-settings\<cloneId>.json`，并以 `--settings` 传入；不改用户主 `settings.json`。
 - 分身清除父环境 CODEX_HOME / Claude 配置目录覆写，并阻止分身配置重新设置隔离目录，始终使用默认家目录。原版检测到会把历史写到默认目录外的设置时应提示目录冲突，不能把隔离目录静默当作默认扫描范围。
-- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；原版 Codex 在 RingCode 内启动时另带 `ringcode-provider-alias.config.toml`，只定义 `[model_providers.ringcode-clone]`，不设顶层 `model_provider`，以便删除分身后仍能在 RingCode 内 resume 旧会话。不得把该 provider 写进用户主 `config.toml`，否则会影响 Codex 桌面版的官方模型目录。
+- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；使用原版 Codex 在 RingCode 内 resume/fork 分身会话时，显式传入 `model_provider="openai"`，让运行时切回官方 provider，同时保留磁盘历史身份。不得把分身 provider 写进用户主 `config.toml`，否则会影响 Codex 桌面版的官方模型目录。
 - 当前权限选择是本次参数的唯一来源，旧 Session 权限和冲突 profile args 不能覆盖它。
 - 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。创建/编辑分身可按当前 URL+Key 拉取模型列表（失败可手填）。
 
@@ -137,7 +137,7 @@ wire_api = "responses"
 - profile 原子写入，检查文件归属，只改本应用所属目标文件；用户主 config.toml 不改，会话仍进默认 sessions。
 - 旧版提示升级，不自动迁移主配置，不隔离 CODEX_HOME。
 
-来源：[OpenAI 官方高级配置文档](https://learn.chatgpt.com/docs/config-file/config-advanced)，2026-09-11 评审核验。本机 Codex 0.153.4 overlay 已实测；删除分身后原版 resume 用 provider 别名 overlay。
+来源：[OpenAI 官方高级配置文档](https://learn.chatgpt.com/docs/config-file/config-advanced)，2026-09-11 评审核验。本机 Codex 0.153.4 overlay 已实测；2026-09-15 纠正为原版 resume/fork 通过 CLI 参数显式覆盖 `model_provider="openai"`，不再用指向 Platform API 的 provider 别名承接 ChatGPT 登录。
 
 ## 7. 继续、换入口与分叉
 
@@ -256,17 +256,16 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 | --- | --- | --- | --- | --- | --- |
 | S0 | 实施拆解与兼容性核验 | 无 | 已完成 | Cursor Grok 4.6 | 见 11.9 记录 2026-09-11 S0；本机 Claude 2.1.100、Codex 0.153.4 overlay 实测。 |
 | S1 | 分身基础与独立配置 | S0 明确数据和启动方案 | 已完成 | Cursor Grok 4.6 | S1-1～S1-6。用户实测 Claude 分身小米线路 vs 原版 DeepSeek；`--settings` 覆盖 `settings.json` env。 |
-| S2 | 历史关联、继续与分叉 | S1 稳定身份和统一启动；S0 恢复信号结论 | 已完成 | Cursor Grok 4.6 | S2-1～S2-6。删除 Codex 分身后原版 resume 用 provider 别名 overlay，用户确认可通过。 |
+| S2 | 历史关联、继续与分叉 | S1 稳定身份和统一启动；S0 恢复信号结论 | 已完成 | Cursor Grok 4.6 | S2-1～S2-6。Claude/Codex 同一原生会话可改选同家族入口；原版 Codex resume/fork 显式覆盖为官方 provider。 |
 | S3 | 系统启动器、删除与清理 | S1 凭据/资源归属；S2 删除回退语义 | 已完成 | Cursor Grok 4.6 | S3-1～S3-3、S3-5、S3-6 主路径。S3-4 空闲全清实现对真实家目录未代跑，见第 13 节。 |
 | S4 | 顶栏显隐、排序与更多列表 | S1 Agent 身份；与 S2/S3 的边界已明确 | 已完成 | Cursor Grok 4.6 | S4-1～S4-6。Electron：1/4/5/20 入口、1024/1152/1440/960、全隐藏、搜索/键盘/删除聚焦、无横滚。 |
-| S5 | 整体验收与交付 | S0～S4 必需项通过 | 已完成 | Cursor Grok 4.6 | 2026-09-14：`npm test` 49 files / 226 tests；用户确认实机主路径通过。 |
+| S5 | 整体验收与交付 | S0～S4 必需项通过 | 已完成 | Cursor Grok 4.6 | 2026-09-15：`npm test` 51 files / 237 tests、typecheck 与正式打包通过；用户已确认实机主路径。 |
 
 **当前接续信息：**
 
-- 当前阶段：S0～S5 主路径已完成。空闲一键全清不对真实家目录代跑。
-- 下一步：无分身阻塞项。发版按 `docs/发版打包.md`。未经另行要求不 push。
+- 当前阶段：S0～S5 主路径已完成；Codex/Claude 双向续聊配置已复核。空闲一键全清不对真实家目录代跑。
+- 下一步：无分身阻塞项。发版按 `docs/发版打包.md`；创建 tag 或上传 Release 仍需明确发版操作。
 - 已知限制：见第 13 节。
-- 未跟踪文件 `docs/分身Agent规划.md` 必须保留。未经另行要求不提交/推送。
 
 ### 11.3 S0：实施拆解与兼容性核验
 
@@ -505,7 +504,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 ```text
 时间 / 执行 Agent：2026-09-14 / Cursor Grok 4.6
 阶段及任务 ID：S1-6、S2-6、S3-3、S3-6、S5-1～S5-4（S3-4 保持未代跑真实家目录）
-本次完成：用户确认实机主路径通过。Claude 分身小米线路 vs 原版 DeepSeek（`--settings` 覆盖 settings.env）；获取模型列表及下拉交互；删除 Codex 分身后原版 resume（provider 别名 overlay）；顶栏更多列表；GitHub 检查更新与 ASCII 发版附件。自动测试 49 files / 226 tests。
+本次完成：用户确认实机主路径通过。Claude 分身小米线路 vs 原版 DeepSeek（`--settings` 覆盖 settings.env）；获取模型列表及下拉交互；删除 Codex 分身后原版 resume（当时采用 provider 别名 overlay，2026-09-15 已因 ChatGPT 登录 401 纠正）；顶栏更多列表；GitHub 检查更新与 ASCII 发版附件。自动测试 49 files / 226 tests。
 变更文件：产品代码已在 22b9dfc；本轮文档对齐 README、进度、规划、requirements、docs/发版打包.md；electron-builder.yml artifactName。
 验证：
 - 用户 2026-09-14：分身线路、模型列表、删除后 resume、检查更新理解与打包规则。
@@ -514,6 +513,14 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 留给后续阶段：无分身功能缺口。产品层仍弱：WSP-004/005、EDT-002、WSP-007、SKL-008、UPD-003/004。
 下一步：发版按 docs/发版打包.md。未经另行要求不 push。
 工作区交接：不要改 ~/.codex/config.toml 或原生历史；PowerShell 勿用 $home。
+```
+
+```text
+时间 / 执行 Agent：2026-09-15 / Codex
+阶段及任务 ID：S2/S5 纠错与回归验证
+本次完成：修复原版 Codex 继续分身会话时把 ChatGPT 登录令牌发往 Platform API 而触发 401 的问题；resume/fork 显式覆盖 `model_provider="openai"`，分身 provider 仍只存在于独立 profile。复核 Claude Code 双向切换：原版与分身复用同一 session ID，分身 `--settings`、URL、模型与密钥仅作用于本次子进程，原版不加载该文件。
+验证：Codex app-server 对真实分身会话以官方 provider 发起临时分支并返回 OK，来源会话文件未变；Claude 本机历史存在同一 session 使用不同模型的连续记录；`npm test` 51 files / 237 tests、`npm run typecheck`、`npm run electron:build` 通过；0.4.1 ZIP 已实际解压并无提权删除。
+未验证 / 失败 / 阻塞：空闲 cloneClearAll 仍未对真实家目录执行；Codex 桌面版不能为单个分身会话注入 RingCode 的 provider 覆盖，直接打开这类会话仍受第 13 节限制。
 ```
 
 ### S0 核验摘要（供实施对照）
@@ -585,17 +592,17 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 
 执行第 15.7 节验收，覆盖显隐持久化、最多 4 个独立按钮、自动收纳、搜索列表和隐藏后的历史恢复。
 
-代码实施阶段执行适配后的自动测试、类型检查、构建及 Electron/CLI 实机验收。自动测试与 typecheck 已再跑通（2026-09-14：49 files / 226 tests）。第 15.7 节窗口收纳已在 Electron 用 960/1024/1152/1440 实测。2026-09-14 用户确认 Claude/Codex 分身主路径实机通过。
+代码实施阶段执行适配后的自动测试、类型检查、构建及 Electron/CLI 实机验收。自动测试与 typecheck 已再跑通（2026-09-15：51 files / 237 tests），正式打包通过。第 15.7 节窗口收纳已在 Electron 用 960/1024/1152/1440 实测。2026-09-14 用户确认 Claude/Codex 分身主路径实机通过；2026-09-15 完成双向续聊路由复核。
 
 ## 13. 剩余技术验证与限制
 
-- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受该参数。删除分身后原版 resume 依赖 `ringcode-provider-alias` overlay（只提供 `[model_providers.ringcode-clone]`）。RingCode 外直接 `codex resume` 或从 Codex 桌面版打开仍可能找不到该 provider；如需桌面版续聊，应另做官方 provider 会话副本/迁移，不能修改全局 provider 目录。
+- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受同一组全局覆盖参数。Codex 0.154.0 app-server 已验证：对分身会话执行 resume 并显式指定 `modelProvider=openai`，运行时切到官方 provider 且原会话文件不变。RingCode 外直接 `codex resume` 或从 Codex 桌面版打开仍可能找不到该 provider；外部 CLI 需显式传入 provider 覆盖，桌面版如需续聊应另做官方 provider 会话副本/迁移，不能修改全局 provider 目录。
 - PTY 创建、鉴权和原生恢复成功不等价；第 7.2 节采用「PTY 创建即提交、明确失败且为最新 attempt 才撤回」，不以等待几秒无退出代替确认。
 - 默认家目录还会共享其他 CLI 原生状态；承诺分身 Key/URL/模型/权限选择独立，不承诺隔离插件、缓存等所有状态。
 - 外部系统命令没有可靠的 RingCode 入口归因；清凭据无法撤回外部进程已有 Key。
 - 自定义 Agent 的“移除”仍只删定义。分身删除与运行中拦截已 Electron 实测。**空闲一键全清未对真实家目录执行**（会扫 Windows 凭据与 `~/.ringcode`），不能当作第 12.3 节全清代跑通过。
 - 系统 helper 通过 `%USERPROFILE%\.ringcode\app-launch.cmd` 以 `ELECTRON_RUN_AS_NODE=1` 调用 `electron-dist/cloneLaunchCli.js`。GUI 关闭缺 Key、cmd 转发带空格参数、cwd/中断/安装路径引号已测。
-- 本机 Codex 0.153.4 满足 overlay 最低版本；启动路径尚未对更旧 CLI 自动提示升级。
+- 本机 Codex 0.153.4 已验证 overlay，0.154.0 app-server 已验证运行时 provider 覆盖；启动路径尚未对更旧 CLI 自动提示升级。
 - Claude 分身必须走 `--settings`；只注入进程 env 会被 `~/.claude/settings.json` 盖掉。
 - 模型列表接口因网关而异：`/anthropic` 聊天基址常需回退主机 `/v1/models`；部分推理接口没有 OpenAI 式 `/models`，拉不到就手填。
 

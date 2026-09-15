@@ -41,17 +41,13 @@ export function buildCodexOverlayToml(input: CodexOverlayInput): { profileName: 
   return { profileName, content: lines.join('\n') }
 }
 
-/** 分身会话会把 model_provider=ringcode-clone 写进 jsonl；删除 overlay 后原版 resume 需要这份定义。不设顶层 model_provider，以免原版新建会话改走分身线路。 */
+/** 原版 Codex 使用官方 provider；resume/fork 还会通过 CLI 参数显式覆盖来源会话的 provider。 */
 export function buildCodexProviderAliasToml(): { profileName: string; content: string } {
   const content = [
     `# ${RINGCODE_OVERLAY_MARKER} cloneId=${CODEX_PROVIDER_ALIAS_ID}`,
-    '# Compatibility overlay for resuming clone-created Codex sessions after the clone is deleted.',
+    '# Forces official OpenAI routing when resuming a clone-created Codex session.',
     '',
-    '[model_providers.ringcode-clone]',
-    'name = "RingCode clone"',
-    `base_url = ${tomlString(CODEX_OFFICIAL_BASE_URL)}`,
-    'wire_api = "responses"',
-    'requires_openai_auth = true',
+    'model_provider = "openai"',
     '',
   ].join('\n')
   return { profileName: CODEX_PROVIDER_ALIAS_PROFILE, content }

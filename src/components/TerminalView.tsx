@@ -202,6 +202,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
               model: resolved?.model ?? profile?.model,
               modelMode: resolved?.modelMode ?? profile?.modelMode,
               codexProfile: resolved?.codexProfile,
+              codexProvider: resolved?.codexProvider,
             },
           )
           if (!current && profile?.envs) {
