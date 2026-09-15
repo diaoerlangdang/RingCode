@@ -14,9 +14,7 @@ describe('Codex overlay 归属写入', () => {
     expect(first.ok).toBe(true)
     const second = writeCodexOverlay({ cloneId, profileName: `ringcode-${cloneId}`, content: `${content}model = "x"\n` }, root)
     expect(second.ok).toBe(true)
-    const desktopConfig = path.join(root, '.codex', 'config.toml')
-    expect(fs.readFileSync(desktopConfig, 'utf8')).toContain('[model_providers.ringcode-clone]')
-    expect(fs.readFileSync(desktopConfig, 'utf8')).toContain('requires_openai_auth = true')
+    expect(fs.existsSync(path.join(root, '.codex', 'config.toml'))).toBe(false)
     const foreign = writeCodexOverlay(
       { cloneId: 'bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee', profileName: `ringcode-${cloneId}`, content: `# Owned by RingCode. cloneId=bbbbbbbb-bbbb-4ccc-8ddd-eeeeeeeeeeee\n` },
       root,
@@ -24,5 +22,27 @@ describe('Codex overlay 归属写入', () => {
     expect(foreign.ok).toBe(false)
     const owned = listOwnedResources(path.join(root, '.ringcode', 'owned-resources.json'))
     expect(owned.some((item) => item.kind === 'codexOverlay' && item.cloneId === cloneId)).toBe(true)
+  })
+
+  it('写入分身 profile 时不修改用户主配置', () => {
+    const root = path.join(os.tmpdir(), `ringcode-overlay-main-config-${process.pid}-${Date.now()}`)
+    const codexDir = path.join(root, '.codex')
+    const mainConfig = path.join(codexDir, 'config.toml')
+    const original = `model = ${JSON.stringify('gpt-6-astra')}\n`
+    fs.mkdirSync(codexDir, { recursive: true })
+    fs.writeFileSync(mainConfig, original)
+    const cloneId = 'cccccccc-bbbb-4ccc-8ddd-eeeeeeeeeeee'
+
+    const result = writeCodexOverlay(
+      {
+        cloneId,
+        profileName: `ringcode-${cloneId}`,
+        content: `# Owned by RingCode. cloneId=${cloneId}\nmodel_provider = ${JSON.stringify('ringcode-clone')}\n`,
+      },
+      root,
+    )
+
+    expect(result.ok).toBe(true)
+    expect(fs.readFileSync(mainConfig, 'utf8')).toBe(original)
   })
 })

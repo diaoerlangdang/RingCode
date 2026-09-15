@@ -110,7 +110,7 @@ Claude/Codex 的规范关联键为 `family + nativeSessionId`；各家族默认�
 - Claude 分身默认：URL 空时清继承 BASE_URL/AUTH_TOKEN，仅注 ANTHROPIC_API_KEY；URL 非空时设置 ANTHROPIC_BASE_URL，清 API_KEY，仅注 ANTHROPIC_AUTH_TOKEN。设置可覆盖凭据变量，但每次只选一个注入目标，不把同一 Key 填入全部敏感变量。
 - Claude Code 会用 `~/.claude/settings.json` 的 `env` **盖掉**进程注入的 `ANTHROPIC_*`。分身启动时写入 `~\.ringcode\claude-settings\<cloneId>.json`，并以 `--settings` 传入；不改用户主 `settings.json`。
 - 分身清除父环境 CODEX_HOME / Claude 配置目录覆写，并阻止分身配置重新设置隔离目录，始终使用默认家目录。原版检测到会把历史写到默认目录外的设置时应提示目录冲突，不能把隔离目录静默当作默认扫描范围。
-- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；原版 Codex 启动另带 `ringcode-provider-alias.config.toml`，只定义 `[model_providers.ringcode-clone]`，不设顶层 `model_provider`，以便删除分身后仍能 resume 旧会话。
+- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；原版 Codex 在 RingCode 内启动时另带 `ringcode-provider-alias.config.toml`，只定义 `[model_providers.ringcode-clone]`，不设顶层 `model_provider`，以便删除分身后仍能在 RingCode 内 resume 旧会话。不得把该 provider 写进用户主 `config.toml`，否则会影响 Codex 桌面版的官方模型目录。
 - 当前权限选择是本次参数的唯一来源，旧 Session 权限和冲突 profile args 不能覆盖它。
 - 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。创建/编辑分身可按当前 URL+Key 拉取模型列表（失败可手填）。
 
@@ -589,7 +589,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 
 ## 13. 剩余技术验证与限制
 
-- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受该参数。删除分身后原版 resume 依赖 `ringcode-provider-alias` overlay（只提供 `[model_providers.ringcode-clone]`）。RingCode 外直接 `codex resume` 仍可能找不到该 provider。
+- 官方 overlay 已在 Codex 0.153.4 用隔离 CODEX_HOME 的 `exec --profile` 证实：`$CODEX_HOME/<name>.config.toml` 顶层字段可覆盖 model/provider。缺失 profile 静默回退主配置。resume/fork 接受该参数。删除分身后原版 resume 依赖 `ringcode-provider-alias` overlay（只提供 `[model_providers.ringcode-clone]`）。RingCode 外直接 `codex resume` 或从 Codex 桌面版打开仍可能找不到该 provider；如需桌面版续聊，应另做官方 provider 会话副本/迁移，不能修改全局 provider 目录。
 - PTY 创建、鉴权和原生恢复成功不等价；第 7.2 节采用「PTY 创建即提交、明确失败且为最新 attempt 才撤回」，不以等待几秒无退出代替确认。
 - 默认家目录还会共享其他 CLI 原生状态；承诺分身 Key/URL/模型/权限选择独立，不承诺隔离插件、缓存等所有状态。
 - 外部系统命令没有可靠的 RingCode 入口归因；清凭据无法撤回外部进程已有 Key。
