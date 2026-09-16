@@ -1,6 +1,7 @@
 type ContextMenuEvent = Pick<MouseEvent, 'preventDefault' | 'stopPropagation'>
 type MouseButtonEvent = Pick<MouseEvent, 'button' | 'stopPropagation'>
 type PasteTarget = { paste: (text: string) => void; focus: () => void }
+type ContextMenuTarget = PasteTarget & { getSelection: () => string }
 
 /** 阻止右键鼠标事件先被启用鼠标协议的终端应用处理。 */
 export function suppressTerminalRightMouseEvent(event: MouseButtonEvent): boolean {
@@ -22,4 +23,21 @@ export async function pasteTerminalFromContextMenu(
   terminal.paste(text)
   terminal.focus()
   return true
+}
+
+/** 有选区时提供复制菜单；无选区时保持原有的右键粘贴。 */
+export async function handleTerminalContextMenu(
+  event: ContextMenuEvent,
+  terminal: ContextMenuTarget,
+  readClipboardText: () => string | Promise<string>,
+  showCopyMenu: (selection: string) => void,
+): Promise<'copy' | 'paste' | 'none'> {
+  const selection = terminal.getSelection()
+  if (selection) {
+    event.preventDefault()
+    event.stopPropagation()
+    showCopyMenu(selection)
+    return 'copy'
+  }
+  return (await pasteTerminalFromContextMenu(event, terminal, readClipboardText)) ? 'paste' : 'none'
 }

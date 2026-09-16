@@ -108,6 +108,7 @@ describe('当前配置与环境', () => {
     expect(cfg.overlay?.content).not.toContain('[model_providers.ringcode-clone]')
     expect(cfg.overlay?.content).not.toContain('requires_openai_auth')
     expect(cfg.overlay?.content).not.toContain('RINGCODE_CODEX_KEY')
+    expect(cfg.overlay?.catalogModel).toBeUndefined()
   })
 
   it('分身缺 Key 拦截，原版无 Key 仍可通过启动准备', async () => {

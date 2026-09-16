@@ -17,6 +17,7 @@ import { runningAiTerminals } from '@/lib/runningAi'
 import { appendAgentPreference, moveAgentOrder, orderedAgents } from '@/lib/quickLaunch'
 import { DEFAULT_KEYMAP } from '@/lib/keymap'
 import { getCommands } from '@/lib/commands'
+import { showAppUpdate, type AppUpdateResult } from '@/lib/appUpdateEvents'
 import type { AgentDef, EnvVar, ThemeMode, ToolProfile } from '@/types'
 
 const inputStyle: React.CSSProperties = {
@@ -79,13 +80,7 @@ export function SettingsModal() {
     packaged: boolean
   } | null>(null)
   const [updateBusy, setUpdateBusy] = useState(false)
-  const [updateResult, setUpdateResult] = useState<{
-    newer: boolean
-    message: string
-    releaseUrl: string
-    downloadUrl: string | null
-    latestVersion: string | null
-  } | null>(null)
+  const [updateResult, setUpdateResult] = useState<AppUpdateResult | null>(null)
 
   useEffect(() => {
     if (open && tab === 'profiles' && settingsProfileId) setEditingId(settingsProfileId)
@@ -370,28 +365,12 @@ export function SettingsModal() {
     try {
       const result = await api.checkAppUpdate(true)
       setUpdateRuntime({ currentVersion: result.currentVersion, channel: result.channel, packaged: result.packaged })
-      setUpdateResult({
-        newer: result.newer,
-        message: result.message,
-        releaseUrl: result.releaseUrl,
-        downloadUrl: result.downloadUrl,
-        latestVersion: result.latestVersion,
-      })
+      setUpdateResult(result)
       showToast(result.message, result.ok ? (result.newer ? 'info' : 'success') : 'error')
+      if (result.newer) showAppUpdate(result)
     } finally {
       setUpdateBusy(false)
     }
-  }
-
-  const openMatchedUpdate = async (result: { releaseUrl: string; downloadUrl: string | null; latestVersion: string | null }) => {
-    const api = window.ringcode
-    const url = result.downloadUrl || result.releaseUrl
-    const ok = await api?.openUpdateUrl?.(url)
-    if (!ok) {
-      showToast('无法打开下载页', 'error')
-      return
-    }
-    if (result.latestVersion) patchSettings({ updateDismissedVersion: result.latestVersion })
   }
 
   const refreshLauncher = async (agent: AgentDef) => {
@@ -692,7 +671,7 @@ export function SettingsModal() {
               <div>
                 <div className="label">关于与更新</div>
                 <div className="desc">
-                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.1'} · {channelText(updateRuntime?.channel)}
+                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.2'} · {channelText(updateRuntime?.channel)}
                   {updateRuntime && !updateRuntime.packaged ? '（开发态按免安装提示）' : ''}
                 </div>
                 {updateResult && (
@@ -706,8 +685,8 @@ export function SettingsModal() {
                   {updateBusy ? '检查中…' : '检查更新'}
                 </button>
                 {updateResult?.newer && (
-                  <button className="btn primary" onClick={() => void openMatchedUpdate(updateResult)}>
-                    {updateResult.downloadUrl ? `下载${channelText(updateRuntime?.channel)}` : '打开发布页'}
+                  <button className="btn primary" onClick={() => showAppUpdate(updateResult)}>
+                    查看升级详情
                   </button>
                 )}
               </div>

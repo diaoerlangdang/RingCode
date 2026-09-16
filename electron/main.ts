@@ -2,7 +2,7 @@
 // 负责：创建窗口、加载渲染层（dev: Vite 服务器 / prod: dist）、受控 IPC。
 // 安全：contextIsolation 开启，渲染层不直接获得 Node 权限（§9.1/9.2）。
 
-import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Notification } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell, Menu, Notification, clipboard } from 'electron'
 import * as path from 'node:path'
 import { promises as fsp } from 'node:fs'
 import { registerPtyHandlers, disposeAllPty } from './pty'
@@ -17,6 +17,7 @@ import { registerWatchHandlers, disposeWatcher } from './watch'
 import { registerOwnedResourceHandlers } from './ownedResources'
 import { registerCodexOverlayHandlers } from './codexOverlayWrite'
 import { removeLegacyCodexDesktopProviderAlias } from './codexDesktopConfig'
+import { quarantineLegacyCodexModelCache } from './codexModelCatalog'
 import { registerCloneResourceHandlers } from './cloneResources'
 import { registerCloneModelHandlers } from './cloneModels'
 import { registerAppUpdateHandlers } from './appUpdateIpc'
@@ -87,6 +88,14 @@ ipcMain.handle('dialog:openDirectory', async () => {
   if (result.canceled || result.filePaths.length === 0) return null
   addAllowedRoot(result.filePaths[0])
   return result.filePaths[0]
+})
+
+ipcMain.on('terminal:contextMenu', (event, selection: string) => {
+  const text = typeof selection === 'string' ? selection.slice(0, 1_000_000) : ''
+  if (!text) return
+  const menu = Menu.buildFromTemplate([{ label: '复制', click: () => clipboard.writeText(text) }])
+  const window = BrowserWindow.fromWebContents(event.sender)
+  if (window) menu.popup({ window })
 })
 
 // 在资源管理器中定位（FIL-005）
@@ -350,6 +359,10 @@ if (!hasSingleInstanceLock) {
     const codexCompatibilityCleanup = removeLegacyCodexDesktopProviderAlias()
     if (!codexCompatibilityCleanup.ok) {
       console.warn(`[RingCode] 无法清理旧版 Codex 桌面兼容配置：${codexCompatibilityCleanup.reason}`)
+    }
+    const codexCacheCleanup = quarantineLegacyCodexModelCache()
+    if (!codexCacheCleanup.ok) {
+      console.warn(`[RingCode] 无法隔离旧 Codex 模型缓存：${codexCacheCleanup.reason}`)
     }
     registerCloneResourceHandlers(currentAppLaunchPointer)
     registerCloneModelHandlers()

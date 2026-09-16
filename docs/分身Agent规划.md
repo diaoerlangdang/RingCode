@@ -110,7 +110,7 @@ Claude/Codex 的规范关联键为 `family + nativeSessionId`；各家族默认�
 - Claude 分身默认：URL 空时清继承 BASE_URL/AUTH_TOKEN，仅注 ANTHROPIC_API_KEY；URL 非空时设置 ANTHROPIC_BASE_URL，清 API_KEY，仅注 ANTHROPIC_AUTH_TOKEN。设置可覆盖凭据变量，但每次只选一个注入目标，不把同一 Key 填入全部敏感变量。
 - Claude Code 会用 `~/.claude/settings.json` 的 `env` **盖掉**进程注入的 `ANTHROPIC_*`。分身启动时写入 `~\.ringcode\claude-settings\<cloneId>.json`，并以 `--settings` 传入；不改用户主 `settings.json`。
 - 分身清除父环境 CODEX_HOME / Claude 配置目录覆写，并阻止分身配置重新设置隔离目录，始终使用默认家目录。原版检测到会把历史写到默认目录外的设置时应提示目录冲突，不能把隔离目录静默当作默认扫描范围。
-- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；使用原版 Codex 在 RingCode 内 resume/fork 分身会话时，显式传入 `model_provider="openai"`，让运行时切回官方 provider，同时保留磁盘历史身份。不得把分身 provider 写进用户主 `config.toml`，否则会影响 Codex 桌面版的官方模型目录。
+- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；每个分身 profile 同时绑定独立的 `model_catalog_json`，避免分身供应商刷新共享 `models_cache.json` 后污染 Codex 桌面版模型列表。使用原版 Codex 在 RingCode 内 resume/fork 分身会话时，显式传入 `model_provider="openai"`，让运行时切回官方 provider，同时保留磁盘历史身份。不得把分身 provider 写进用户主 `config.toml`。
 - 当前权限选择是本次参数的唯一来源，旧 Session 权限和冲突 profile args 不能覆盖它。
 - 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。创建/编辑分身可按当前 URL+Key 拉取模型列表（失败可手填）。
 
@@ -134,7 +134,7 @@ wire_api = "responses"
 - Key 由主进程/helper 注入声明的 env，协议及认证模式须与网关相容。URL 空时也要明确选择官方线路，避免继承原版自定义 provider；CLI 登录态不能静默替代分身指定 Key。
 - profile 是叠加层。分身当前显式模型、权限通过受支持 CLI 参数确保生效；其他来源中的冲突参数须规范化或拒绝。系统策略/配置叠加导致不能满足选择时，明确报告限制。
 - Codex 使用 `resume <id>` / `fork <id>`；分别验证 profile、模型和权限参数的位置与结果，不使用自定义 Agent 通用 `--resume`。
-- profile 原子写入，检查文件归属，只改本应用所属目标文件；用户主 config.toml 不改，会话仍进默认 sessions。
+- profile 与单模型目录原子写入，检查文件归属，只改本应用所属目标文件；用户主 config.toml 不改，会话仍进默认 sessions。升级后把可能已被旧分身刷新过的全局 `models_cache.json` 改名备份一次，由官方 Codex 后续重新生成。
 - 旧版提示升级，不自动迁移主配置，不隔离 CODEX_HOME。
 
 来源：[OpenAI 官方高级配置文档](https://learn.chatgpt.com/docs/config-file/config-advanced)，2026-09-11 评审核验。本机 Codex 0.153.4 overlay 已实测；2026-09-15 纠正为原版 resume/fork 通过 CLI 参数显式覆盖 `model_provider="openai"`，不再用指向 Platform API 的 provider 别名承接 ChatGPT 登录。
@@ -541,7 +541,7 @@ PATH 更新后让终端宿主刷新环境；通常重新打开终端，仍继承
 - 设置移除：`src/components/SettingsModal.tsx` 自定义 Agent「移除」只删定义
 - 可执行文件：`electron/executableResolver.ts`、`electron/agentPaths.ts`（目前只特殊处理 agy/opencode）
 
-**第 6.3 节 Codex 支持范围：** 本机 0.153.4 ≥ 0.134.0，采用文件 overlay，不改主 config.toml，不隔离产品 CODEX_HOME。必须先写入 overlay：缺失 profile 会静默走主配置/官方线路。权限与显式模型用 CLI 参数保证。交互启动不要用 `--skip-git-repo-check`（仅 exec）。argv 推荐全局前置：`--profile <name> [resume|fork] <id> [--model ...] [权限]`。
+**第 6.3 节 Codex 支持范围：** 本机 0.153.4 ≥ 0.134.0，采用文件 overlay 与 profile 级 `model_catalog_json`，不改主 config.toml，不隔离产品 CODEX_HOME。必须先写入 overlay 与模型目录：缺失 profile 会静默走主配置/官方线路。权限与显式模型用 CLI 参数保证。交互启动不要用 `--skip-git-repo-check`（仅 exec）。argv 推荐全局前置：`--profile <name> [resume|fork] <id> [--model ...] [权限]`。
 
 **第 7.2 节启动信号：**
 - 可靠：PTY spawn 抛错、PTY 已创建、进程退出码、用户取消目录选择。

@@ -8,7 +8,7 @@ import {
   pickReleaseAsset,
 } from './appUpdate'
 
-const exe = { name: '金刚琢-0.4.1-x64.exe', browser_download_url: 'https://github.com/diaoerlangdang/RingCode/releases/download/v0.4.1/exe' }
+const exe = { name: 'RingCode-0.4.2-x64.exe', browser_download_url: 'https://github.com/diaoerlangdang/RingCode/releases/download/v0.4.2/RingCode-0.4.2-x64.exe', size: 123 }
 const zip = { name: '金刚琢-0.4.1-x64.zip', browser_download_url: 'https://github.com/diaoerlangdang/RingCode/releases/download/v0.4.1/zip' }
 const src = { name: 'Source code (zip)', browser_download_url: 'https://github.com/diaoerlangdang/RingCode/archive/refs/tags/v0.4.1.zip' }
 const blockmap = { name: '金刚琢-0.4.1-x64.exe.blockmap', browser_download_url: 'https://example.com/blockmap' }
@@ -75,39 +75,49 @@ describe('detectUpdateChannel', () => {
 })
 
 describe('pickReleaseAsset', () => {
-  it('免安装选 zip，安装版选 exe，都忽略源码包和 blockmap', () => {
+  it('安装版和免安装版都选择 NSIS 安装包，应用内升级不下载 ZIP', () => {
     const assets = [src, blockmap, exe, zip]
-    expect(pickReleaseAsset(assets, 'portable')?.name).toBe(zip.name)
-    expect(pickReleaseAsset(assets, 'installer')?.name).toBe(exe.name)
+    expect(pickReleaseAsset(assets)?.name).toBe(exe.name)
   })
 
-  it('没有对应包装时返回空，让调用方回退到 Release 页', () => {
-    expect(pickReleaseAsset([exe, src], 'portable')).toBeNull()
-    expect(pickReleaseAsset([zip, src], 'installer')).toBeNull()
-    expect(pickReleaseAsset([src], 'portable')).toBeNull()
+  it('没有安装包时返回空，不回退到浏览器或 ZIP', () => {
+    expect(pickReleaseAsset([zip, src])).toBeNull()
+    expect(pickReleaseAsset([src])).toBeNull()
   })
 })
 
 describe('evaluateRelease', () => {
-  it('有更新时指向当前渠道的包装，没有包装则只给 Release 页', () => {
+  it('返回安装包和 Release Notes，没有安装包时保留说明但不提供下载地址', () => {
     const newer = evaluateRelease(
-      { tag_name: 'v0.4.1', html_url: 'https://github.com/diaoerlangdang/RingCode/releases/tag/v0.4.1', assets: [exe, zip] },
-      '0.4.0',
+      {
+        tag_name: 'v0.4.2',
+        name: 'RingCode 0.4.2',
+        body: '- 修复模型串线\n- 支持应用内升级',
+        published_at: '2026-09-15T08:00:00Z',
+        html_url: 'https://github.com/diaoerlangdang/RingCode/releases/tag/v0.4.2',
+        assets: [exe, zip],
+      },
+      '0.4.1',
       'portable',
     )
     expect(newer.newer).toBe(true)
-    expect(newer.latestVersion).toBe('0.4.1')
-    expect(newer.downloadUrl).toBe(zip.browser_download_url)
-    expect(newer.downloadName).toBe(zip.name)
+    expect(newer.latestVersion).toBe('0.4.2')
+    expect(newer.downloadUrl).toBe(exe.browser_download_url)
+    expect(newer.downloadName).toBe(exe.name)
+    expect(newer.downloadSize).toBe(123)
+    expect(newer.releaseName).toBe('RingCode 0.4.2')
+    expect(newer.releaseNotes).toContain('模型串线')
+    expect(newer.publishedAt).toBe('2026-09-15T08:00:00Z')
 
-    const noZip = evaluateRelease(
-      { tag_name: 'v0.4.1', html_url: 'https://github.com/diaoerlangdang/RingCode/releases/tag/v0.4.1', assets: [exe] },
-      '0.4.0',
+    const noInstaller = evaluateRelease(
+      { tag_name: 'v0.4.2', html_url: 'https://github.com/diaoerlangdang/RingCode/releases/tag/v0.4.2', assets: [zip] },
+      '0.4.1',
       'portable',
     )
-    expect(noZip.newer).toBe(true)
-    expect(noZip.downloadUrl).toBeNull()
-    expect(noZip.releaseUrl).toContain('/releases/tag/v0.4.1')
+    expect(noInstaller.newer).toBe(true)
+    expect(noInstaller.downloadUrl).toBeNull()
+    expect(noInstaller.releaseNotes).toBe('本次发布未填写更新说明。')
+    expect(noInstaller.releaseUrl).toContain('/releases/tag/v0.4.2')
   })
 
   it('已是最新时 newer 为 false', () => {

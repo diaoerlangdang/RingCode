@@ -26,6 +26,8 @@ function deleteOwnedPath(file: string, cloneId: string, kind: OwnedResource['kin
     const owned =
       kind === 'codexOverlay'
         ? overlayOwnedBy(content, cloneId)
+        : kind === 'codexCatalog'
+          ? content.includes(`RingCode isolated model catalog for ${cloneId}`)
         : kind === 'launcher'
           ? launcherOwnedBy(content, cloneId)
           : kind === 'snapshot'

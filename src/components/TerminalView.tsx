@@ -17,8 +17,8 @@ import {
   revertLaunchAttemptIfLatest,
 } from '@/lib/launchAttempts'
 import { quoteForShell } from '@/lib/shellQuote'
-import { handleTerminalKeyEvent } from '@/lib/terminalKeyHandler'
-import { pasteTerminalFromContextMenu, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
+import { handleTerminalKeyEvent, shouldBlockTerminalMouseMode } from '@/lib/terminalKeyHandler'
+import { handleTerminalContextMenu, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
 import { registerTerminalTarget } from '@/lib/terminalRegistry'
 import type { PermissionChoice, TerminalTab } from '@/types'
 
@@ -87,6 +87,18 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       return
     }
     term.open(containerRef.current)
+    const appState = useAppStore.getState()
+    const terminalAgent = terminal.tool
+      ? agentById(terminal.tool, appState.settings.customAgents ?? [])
+      : undefined
+    const terminalFamily = terminalAgent?.sourceFamily || terminal.tool
+    const keepLocalTextSelection = terminalFamily === 'codex' || terminalFamily === 'antigravity'
+    const mouseModeSet = keepLocalTextSelection
+      ? term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, shouldBlockTerminalMouseMode)
+      : undefined
+    const mouseModeReset = keepLocalTextSelection
+      ? term.parser.registerCsiHandler({ prefix: '?', final: 'l' }, shouldBlockTerminalMouseMode)
+      : undefined
     termRef.current = term
     fitRef.current = fit
     const unregisterTarget = registerTerminalTarget(terminal.id, {
@@ -386,6 +398,8 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       unregisterTarget()
       cancelAnimationFrame(raf)
       ro.disconnect()
+      mouseModeSet?.dispose()
+      mouseModeReset?.dispose()
       cleanup?.()
       ptyClient.dispose(terminal.id)
       term.dispose()
@@ -444,10 +458,15 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
   const onContextMenu = (e: React.MouseEvent) => {
     const term = termRef.current
     if (!term || terminal.orphaned) return
-    void pasteTerminalFromContextMenu(e, term, () => {
-      if (window.ringcode?.readClipboardText) return window.ringcode.readClipboardText()
-      return navigator.clipboard.readText()
-    }).catch(() => useAppStore.getState().showToast('无法读取剪贴板', 'error'))
+    void handleTerminalContextMenu(
+      e,
+      term,
+      () => {
+        if (window.ringcode?.readClipboardText) return window.ringcode.readClipboardText()
+        return navigator.clipboard.readText()
+      },
+      (selection) => window.ringcode?.showTerminalContextMenu(selection),
+    ).catch(() => useAppStore.getState().showToast('无法读取剪贴板', 'error'))
   }
   const onRightMouseEventCapture = (e: React.MouseEvent) => {
     suppressTerminalRightMouseEvent(e)

@@ -7,6 +7,7 @@ import { ownedResourcesPath } from './ringcodeHome'
 export type OwnedResource =
   | { kind: 'credential'; id: string; cloneId: string }
   | { kind: 'codexOverlay'; path: string; cloneId: string; profileName: string }
+  | { kind: 'codexCatalog'; path: string; cloneId: string; profileName: string }
   | { kind: 'launcher'; path: string; cloneId: string; commandName: string }
   | { kind: 'snapshot'; path: string; cloneId: string }
   | { kind: 'claudeSettings'; path: string; cloneId: string }
@@ -42,6 +43,7 @@ function sameResource(a: OwnedResource, b: OwnedResource): boolean {
   if (a.kind !== b.kind || a.cloneId !== b.cloneId) return false
   if (a.kind === 'credential' && b.kind === 'credential') return a.id === b.id
   if (a.kind === 'codexOverlay' && b.kind === 'codexOverlay') return a.path === b.path
+  if (a.kind === 'codexCatalog' && b.kind === 'codexCatalog') return a.path === b.path
   if (a.kind === 'launcher' && b.kind === 'launcher') return a.path === b.path
   if (a.kind === 'snapshot' && b.kind === 'snapshot') return a.path === b.path
   if (a.kind === 'claudeSettings' && b.kind === 'claudeSettings') return a.path === b.path
@@ -74,7 +76,9 @@ function isOwnedResourcePayload(item: unknown): item is OwnedResource {
   const value = item as OwnedResource
   if (typeof value.cloneId !== 'string' || typeof value.kind !== 'string') return false
   if (value.kind === 'credential') return typeof value.id === 'string'
-  if (value.kind === 'codexOverlay') return typeof value.path === 'string' && typeof value.profileName === 'string'
+  if (value.kind === 'codexOverlay' || value.kind === 'codexCatalog') {
+    return typeof value.path === 'string' && typeof value.profileName === 'string'
+  }
   if (value.kind === 'launcher') return typeof value.path === 'string' && typeof value.commandName === 'string'
   if (value.kind === 'snapshot') return typeof value.path === 'string'
   return false

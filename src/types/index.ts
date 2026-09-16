@@ -202,6 +202,8 @@ export interface AppSettings {
   quickLaunch?: QuickLaunchPrefs
   /** 启动检查已忽略的版本号，避免同一版本反复提示 */
   updateDismissedVersion?: string
+  /** “稍后提醒”的时间；24 小时后可再次提示同一版本 */
+  updateDismissedAt?: number
 }
 
 /** 最近打开的文件（左栏「最近」） */

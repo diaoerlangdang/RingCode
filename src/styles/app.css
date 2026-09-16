@@ -1402,6 +1402,116 @@
   gap: 10px;
   margin-top: var(--sp-5);
 }
+
+/* ---------- 应用更新 ---------- */
+.update-overlay {
+  z-index: 90;
+}
+.update-modal {
+  width: min(600px, 92vw);
+  padding: 0;
+  overflow: hidden;
+}
+.update-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.update-modal-head h3 {
+  margin: 2px 0 0;
+  font-size: 18px;
+}
+.update-kicker {
+  color: var(--accent-text);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+.update-meta {
+  margin-top: 4px;
+  color: var(--text-3);
+  font-size: 11px;
+}
+.update-close {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  border-radius: var(--radius);
+  color: var(--text-3);
+  font-size: 22px;
+  line-height: 1;
+}
+.update-close:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.update-notes {
+  max-height: min(360px, 48vh);
+  margin: 18px 24px 0;
+  padding: 14px 16px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-2);
+}
+.update-notes-title {
+  margin-bottom: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+}
+.update-notes pre {
+  color: var(--text-2);
+  font-family: var(--font-ui);
+  font-size: 12px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+.update-hint,
+.update-error,
+.update-progress {
+  margin: 12px 24px 0;
+  font-size: 11px;
+}
+.update-hint {
+  color: var(--text-3);
+}
+.update-error {
+  padding: 9px 11px;
+  border: 1px solid color-mix(in srgb, var(--error) 45%, transparent);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--error) 8%, transparent);
+  color: var(--error);
+}
+.update-progress-row {
+  display: flex;
+  justify-content: space-between;
+  min-height: 18px;
+  color: var(--text-2);
+}
+.update-progress-track {
+  height: 7px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-3);
+}
+.update-progress-track > div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+.update-actions {
+  min-height: 69px;
+  margin-top: 16px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--border);
+}
 .history-modal-overlay {
   z-index: 80;
   padding: 32px;

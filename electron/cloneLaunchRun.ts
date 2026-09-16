@@ -94,7 +94,15 @@ export async function runCloneLaunch(
       model: config.model,
       modelMode: config.modelMode,
     })
-    const written = writeCodexOverlay({ cloneId: config.cloneId, profileName: overlay.profileName, content: overlay.content }, home)
+    const written = writeCodexOverlay(
+      {
+        cloneId: config.cloneId,
+        profileName: overlay.profileName,
+        content: overlay.content,
+        catalogModel: config.model.trim() || 'gpt-5',
+      },
+      home,
+    )
     if (!written.ok) {
       process.stderr.write(`无法写入 Codex profile：${written.reason}\n`)
       return 1

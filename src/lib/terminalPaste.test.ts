@@ -1,7 +1,32 @@
 import { describe, expect, it, vi } from 'vitest'
-import { pasteTerminalFromContextMenu, suppressTerminalRightMouseEvent } from './terminalPaste'
+import { handleTerminalContextMenu, pasteTerminalFromContextMenu, suppressTerminalRightMouseEvent } from './terminalPaste'
 
 describe('pasteTerminalFromContextMenu', () => {
+  it('有选区时右键只打开复制菜单，不读取剪贴板或粘贴', async () => {
+    const event = { preventDefault: vi.fn(), stopPropagation: vi.fn() }
+    const terminal = { paste: vi.fn(), focus: vi.fn(), getSelection: () => 'selected output' }
+    const readClipboard = vi.fn(() => 'clipboard text')
+    const showCopyMenu = vi.fn()
+
+    await expect(handleTerminalContextMenu(event, terminal, readClipboard, showCopyMenu)).resolves.toBe('copy')
+    expect(showCopyMenu).toHaveBeenCalledWith('selected output')
+    expect(readClipboard).not.toHaveBeenCalled()
+    expect(terminal.paste).not.toHaveBeenCalled()
+  })
+
+  it('无选区时保留右键粘贴', async () => {
+    const terminal = { paste: vi.fn(), focus: vi.fn(), getSelection: () => '' }
+    const result = await handleTerminalContextMenu(
+      { preventDefault: vi.fn(), stopPropagation: vi.fn() },
+      terminal,
+      () => 'clipboard text',
+      vi.fn(),
+    )
+
+    expect(result).toBe('paste')
+    expect(terminal.paste).toHaveBeenCalledWith('clipboard text')
+  })
+
   it('右键按下先在捕获阶段停止传播，避免支持鼠标的 CLI 再处理一次', () => {
     const event = { button: 2, stopPropagation: vi.fn() }
 

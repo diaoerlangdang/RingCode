@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.1-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.2-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2B%20(x64)-0078D6.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Electron-31-47848F.svg" alt="Electron">
   <img src="https://img.shields.io/badge/React-18-61DAFB.svg" alt="React">
@@ -48,7 +48,7 @@
   - 多终端 Tab 自由切换与分屏管理，各会话独立维持生命周期。
 
 - 💻 **深度定制的 ConPTY 原生终端**
-  - **括号粘贴模式（Bracketed Paste Mode）**：无论是单行指令还是数百行复杂代码，插入/粘贴均作为原子块整体注入，**绝不会因中间换行意外触发回车发送**。
+  - **终端复制与括号粘贴模式（Bracketed Paste Mode）**：Codex / Antigravity CLI 可像 Claude Code 一样直接拖选文本；有选区时右键复制，无选区时右键粘贴。无论是单行指令还是数百行复杂代码，插入/粘贴均作为原子块整体注入，**绝不会因中间换行意外触发回车发送**。
   - **智能拖拽与路径转义**：直接把工作区文件或外部文件拖拽至终端，自动转换为规范路径并完成安全 Shell 转义。
   - 深度支持快捷键穿透与 Windows 原生键盘交互。
 
@@ -112,7 +112,7 @@ npm run dev
 
 #### 检查与打包
 ```bash
-# 执行类型检查与单元测试（当前 51 个文件 / 237 项）
+# 执行类型检查与单元测试（当前 54 个文件 / 251 项）
 npm run typecheck
 npm test
 
@@ -131,7 +131,7 @@ npm run electron:build
 | Agent | 推荐安装 / 获取方式 | 核心适配特性 |
 | --- | --- | --- |
 | **Claude Code** | `npm install -g @anthropic-ai/claude-code` | 解析 `history.jsonl`，支持 `--resume` / `--fork-session`；可复制分身 |
-| **Codex** | 官方 Codex CLI（`codex`） | `resume` / `fork`；分身用独立 overlay，原版续聊显式切回官方 provider，不改用户主 `config.toml` |
+| **Codex** | 官方 Codex CLI（`codex`） | `resume` / `fork`；分身使用独立 overlay 与模型目录，原版续聊显式切回官方 provider，不改用户主 `config.toml` 或桌面版模型缓存 |
 | **OpenCode** | 参考官方 OpenCode CLI 安装文档 | 自动捕获会话历史 |
 | **Antigravity CLI** | 安装 Google Antigravity 官方 CLI (`agy`) | 自动索引 `transcript.jsonl` |
 | **Hermes** | 接入 Hermes 自动化 Agent 终端 | 自动化调度 |
@@ -154,7 +154,7 @@ RingCode/
 │   ├── cloneResources.ts     # 分身 overlay / 启动器文件
 │   ├── cloneModels.ts        # 分身「获取模型列表」
 │   ├── claudeSettingsWrite.ts# Claude 分身 --settings 覆盖
-│   └── appUpdate.ts          # GitHub Release 检查更新
+│   └── appUpdate.ts          # GitHub Release 定时检查与应用内升级
 ├── src/
 │   ├── components/           # EditorPane, TerminalView, FileManager, QuickLaunchCluster...
 │   ├── lib/agents.ts         # 内置 Agent 适配器

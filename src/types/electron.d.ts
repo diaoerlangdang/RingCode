@@ -28,6 +28,7 @@ export interface RingCodeApi {
   versions: { electron: string; chrome: string; node: string }
   isElectron: boolean
   readClipboardText: () => string
+  showTerminalContextMenu: (selection: string) => void
   openDirectoryDialog: () => Promise<string | null>
   revealInExplorer: (p: string) => Promise<void>
   saveTextFile: (defaultName: string, content: string) => Promise<string | null>
@@ -166,9 +167,21 @@ export interface RingCodeApi {
     releaseUrl: string
     downloadUrl: string | null
     downloadName: string | null
+    downloadSize: number | null
+    releaseName: string | null
+    releaseNotes: string | null
+    publishedAt: string | null
     message: string
   }>
-  openUpdateUrl: (url: string) => Promise<boolean>
+  downloadAndInstallUpdate: () => Promise<{ ok: boolean; error?: string }>
+  onUpdateProgress: (cb: (payload: {
+    phase: 'downloading' | 'installing' | 'error'
+    version: string
+    message: string
+    receivedBytes?: number
+    totalBytes?: number | null
+    percent?: number
+  }) => void) => () => void
 }
 
 declare global {

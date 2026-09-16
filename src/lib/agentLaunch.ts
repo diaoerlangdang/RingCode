@@ -40,7 +40,7 @@ export interface CurrentLaunchConfig {
   envPlan: LaunchEnvPlan
   codexProfile?: string
   codexProvider?: string
-  overlay?: { profileName: string; content: string; cloneId: string }
+  overlay?: { profileName: string; content: string; cloneId: string; catalogModel?: string }
   claudeSettings?: {
     cloneId: string
     injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
@@ -63,7 +63,11 @@ export function resolveCurrentLaunchConfig(input: {
   const overlay =
     family === 'codex'
       ? clone
-        ? { ...buildCodexOverlayToml({ cloneId: input.agent.id, baseUrl, model: profile.model, modelMode }), cloneId: input.agent.id }
+        ? {
+            ...buildCodexOverlayToml({ cloneId: input.agent.id, baseUrl, model: profile.model, modelMode }),
+            cloneId: input.agent.id,
+            catalogModel: profile.model.trim() || input.agent.defaultModel || 'gpt-5',
+          }
         : { ...buildCodexProviderAliasToml(), cloneId: CODEX_PROVIDER_ALIAS_ID }
       : undefined
   const claudeSettings =

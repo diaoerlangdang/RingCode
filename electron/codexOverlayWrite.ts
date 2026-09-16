@@ -3,6 +3,7 @@ import * as os from 'node:os'
 import * as path from 'node:path'
 import { ipcMain } from 'electron'
 import { registerOwnedResource } from './ownedResources'
+import { withCodexModelCatalogPath, writeCodexModelCatalog } from './codexModelCatalog'
 
 const MARKER = 'Owned by RingCode.'
 
@@ -10,6 +11,7 @@ export interface WriteOverlayInput {
   cloneId: string
   profileName: string
   content: string
+  catalogModel?: string
 }
 
 export type WriteOverlayResult = { ok: true; path: string } | { ok: false; reason: string }
@@ -38,9 +40,18 @@ export function writeCodexOverlay(input: WriteOverlayInput, home = os.homedir())
         return { ok: false, reason: `已存在非本应用文件：${file}` }
       }
     }
+    let content = input.content
+    if (input.catalogModel?.trim()) {
+      const catalog = writeCodexModelCatalog(
+        { cloneId: input.cloneId, profileName, model: input.catalogModel.trim() },
+        home,
+      )
+      if (!catalog.ok) return catalog
+      content = withCodexModelCatalogPath(content, catalog.path, input.catalogModel)
+    }
     fs.mkdirSync(path.dirname(file), { recursive: true })
     const tmp = `${file}.${process.pid}.tmp`
-    fs.writeFileSync(tmp, input.content.endsWith('\n') ? input.content : `${input.content}\n`, 'utf8')
+    fs.writeFileSync(tmp, content.endsWith('\n') ? content : `${content}\n`, 'utf8')
     fs.renameSync(tmp, file)
     registerOwnedResource(
       { kind: 'codexOverlay', path: file, cloneId: input.cloneId, profileName },

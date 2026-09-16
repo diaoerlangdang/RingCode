@@ -11,6 +11,7 @@ const api = {
   },
   isElectron: true,
   readClipboardText: (): string => clipboard.readText(),
+  showTerminalContextMenu: (selection: string): void => ipcRenderer.send('terminal:contextMenu', selection),
   // 原生目录选择（备选 FS Access API）
   openDirectoryDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),
   revealInExplorer: (p: string): Promise<void> => ipcRenderer.invoke('shell:revealInExplorer', p),
@@ -134,7 +135,19 @@ const api = {
     ipcRenderer.invoke('history:readFilePage', file, before),
   updateRuntime: () => ipcRenderer.invoke('update:runtime'),
   checkAppUpdate: (force?: boolean) => ipcRenderer.invoke('update:check', force === true),
-  openUpdateUrl: (url: string) => ipcRenderer.invoke('update:open', url),
+  downloadAndInstallUpdate: () => ipcRenderer.invoke('update:install'),
+  onUpdateProgress: (cb: (payload: {
+    phase: 'downloading' | 'installing' | 'error'
+    version: string
+    message: string
+    receivedBytes?: number
+    totalBytes?: number | null
+    percent?: number
+  }) => void) => {
+    const listener = (_event: Electron.IpcRendererEvent, payload: Parameters<typeof cb>[0]) => cb(payload)
+    ipcRenderer.on('update:progress', listener)
+    return () => ipcRenderer.removeListener('update:progress', listener)
+  },
 }
 
 contextBridge.exposeInMainWorld('ringcode', api)

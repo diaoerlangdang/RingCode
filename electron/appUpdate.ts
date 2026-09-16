@@ -1,4 +1,4 @@
-/** GitHub Release 检查更新：按当前是免安装还是安装版，指向对应包装。不自动替换文件。 */
+/** GitHub Release 检查更新：两个分发渠道都通过 NSIS 安装包完成应用内升级。 */
 
 export const UPDATE_REPO = 'diaoerlangdang/RingCode'
 export const UPDATE_RELEASES_URL = `https://github.com/${UPDATE_REPO}/releases`
@@ -9,11 +9,15 @@ export type UpdateChannel = 'portable' | 'installer'
 export interface ReleaseAsset {
   name: string
   browser_download_url: string
+  size?: number
 }
 
 export interface GithubRelease {
   tag_name: string
   html_url: string
+  name?: string
+  body?: string
+  published_at?: string
   assets?: ReleaseAsset[]
 }
 
@@ -23,6 +27,10 @@ export interface UpdateEval {
   releaseUrl: string
   downloadUrl: string | null
   downloadName: string | null
+  downloadSize: number | null
+  releaseName: string
+  releaseNotes: string
+  publishedAt: string | null
 }
 
 export function normalizeVersion(raw: string): string {
@@ -78,11 +86,8 @@ function isIgnorableAsset(name: string): boolean {
   return false
 }
 
-export function pickReleaseAsset(assets: ReleaseAsset[], channel: UpdateChannel): ReleaseAsset | null {
+export function pickReleaseAsset(assets: ReleaseAsset[]): ReleaseAsset | null {
   const usable = assets.filter((a) => a?.name && a.browser_download_url && !isIgnorableAsset(a.name))
-  if (channel === 'portable') {
-    return usable.find((a) => a.name.toLowerCase().endsWith('.zip')) ?? null
-  }
   return (
     usable.find((a) => {
       const n = a.name.toLowerCase()
@@ -93,13 +98,17 @@ export function pickReleaseAsset(assets: ReleaseAsset[], channel: UpdateChannel)
 
 export function evaluateRelease(release: GithubRelease, currentVersion: string, channel: UpdateChannel): UpdateEval {
   const latestVersion = normalizeVersion(release.tag_name)
-  const asset = pickReleaseAsset(release.assets ?? [], channel)
+  const asset = pickReleaseAsset(release.assets ?? [])
   return {
     latestVersion,
     newer: isNewerVersion(latestVersion, currentVersion),
     releaseUrl: release.html_url || UPDATE_RELEASES_URL,
     downloadUrl: asset?.browser_download_url ?? null,
     downloadName: asset?.name ?? null,
+    downloadSize: typeof asset?.size === 'number' && asset.size > 0 ? asset.size : null,
+    releaseName: release.name?.trim() || `RingCode ${latestVersion}`,
+    releaseNotes: release.body?.trim() || '本次发布未填写更新说明。',
+    publishedAt: release.published_at?.trim() || null,
   }
 }
 
@@ -117,6 +126,10 @@ export interface UpdateCheckResult {
   releaseUrl: string
   downloadUrl: string | null
   downloadName: string | null
+  downloadSize: number | null
+  releaseName: string | null
+  releaseNotes: string | null
+  publishedAt: string | null
   message: string
 }
 
@@ -125,6 +138,6 @@ export function buildUpdateMessage(result: Omit<UpdateCheckResult, 'ok' | 'messa
   const kind = channelLabel(result.channel)
   if (!result.latestVersion) return `未能读取 GitHub Release（当前 ${result.currentVersion}，${kind}）`
   if (!result.newer) return `已是最新版本 ${result.currentVersion}（${kind}）`
-  if (result.downloadName) return `发现新版本 ${result.latestVersion}，将下载${kind}「${result.downloadName}」`
-  return `发现新版本 ${result.latestVersion}。Release 上还没有对应的${kind}包装，将打开发布页`
+  if (result.downloadName) return `发现新版本 ${result.latestVersion}，可在应用内下载安装`
+  return `发现新版本 ${result.latestVersion}，但 Release 暂未提供 Windows 安装包`
 }

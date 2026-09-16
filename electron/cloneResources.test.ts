@@ -82,8 +82,10 @@ describe('clone resource cleanup', () => {
     const home = mkdtempSync(path.join(tmpdir(), 'ringcode-clearall-'))
     mkdirSync(path.join(home, '.ringcode'), { recursive: true })
     const overlay = path.join(home, '.codex', 'ringcode-clone-a.config.toml')
+    const catalog = path.join(home, '.codex', 'ringcode-clone-a.models.json')
     mkdirSync(path.dirname(overlay), { recursive: true })
     writeFileSync(overlay, `# ${LAUNCHER_MARKER} cloneId=clone-a\n`)
+    writeFileSync(catalog, '{"models":[{"description":"RingCode isolated model catalog for clone-a"}]}')
     writeFileSync(
       path.join(home, '.ringcode', 'owned-resources.json'),
       JSON.stringify({
@@ -91,6 +93,7 @@ describe('clone resource cleanup', () => {
         items: [
           { kind: 'credential', id: 'ringcode:clone:clone-a', cloneId: 'clone-a' },
           { kind: 'codexOverlay', path: overlay, cloneId: 'clone-a', profileName: 'ringcode-clone-a' },
+          { kind: 'codexCatalog', path: catalog, cloneId: 'clone-a', profileName: 'ringcode-clone-a' },
         ],
       }),
     )
@@ -98,6 +101,7 @@ describe('clone resource cleanup', () => {
     expect(results.every((item) => item.ok)).toBe(true)
     expect(deleted).toEqual(expect.arrayContaining(['ringcode:clone:clone-a', 'ringcode:anthropic-key', 'ringcode:openai-key']))
     expect(() => readFileSync(overlay, 'utf8')).toThrow()
+    expect(() => readFileSync(catalog, 'utf8')).toThrow()
   })
 
   it('clear-key only deletes the clone credential ref', () => {

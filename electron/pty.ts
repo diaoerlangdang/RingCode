@@ -29,7 +29,7 @@ export interface PtySpawnOpts {
   requireCredential?: boolean
   extraEnv?: Record<string, string>
   cloneId?: string
-  codexOverlay?: { cloneId: string; profileName: string; content: string }
+  codexOverlay?: { cloneId: string; profileName: string; content: string; catalogModel?: string }
   claudeSettings?: {
     cloneId: string
     injectKey: 'ANTHROPIC_API_KEY' | 'ANTHROPIC_AUTH_TOKEN'
