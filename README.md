@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.2-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.3-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2B%20(x64)-0078D6.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Electron-31-47848F.svg" alt="Electron">
   <img src="https://img.shields.io/badge/React-18-61DAFB.svg" alt="React">

@@ -1,5 +1,54 @@
 import { describe, expect, it, vi } from 'vitest'
-import { handleTerminalContextMenu, pasteTerminalFromContextMenu, suppressTerminalRightMouseEvent } from './terminalPaste'
+import { Terminal } from '@xterm/xterm'
+import { handleTerminalContextMenu, pasteTerminalFromContextMenu, pasteTerminalText, suppressTerminalRightMouseEvent } from './terminalPaste'
+
+describe('pasteTerminalText', () => {
+  function terminalInput(paste: (terminal: Terminal) => void): string {
+    const terminal = new Terminal()
+    // xterm's paste path clears its textarea; no DOM is needed for the input stream test.
+    Object.assign((terminal as unknown as { _core: { textarea: unknown } })._core, { textarea: { value: '' } })
+    const input: string[] = []
+    terminal.onData((data) => input.push(data))
+    paste(terminal)
+    terminal.dispose()
+    return input.join('')
+  }
+
+  it('Codex receives a two-blank-line paste as one protected input without Enter bytes', () => {
+    const input = terminalInput((terminal) => {
+      expect(pasteTerminalText(terminal, 'first\r\n\r\nlast', 'codex')).toBe(true)
+    })
+
+    expect(input).toBe('\x1b[200~first\n\nlast\x1b[201~')
+  })
+
+  it('other AI terminals use xterm bracketed paste when their CLI enables it', () => {
+    const input = terminalInput((terminal) => {
+      const core = (terminal as unknown as { _core: { coreService: { decPrivateModes: { bracketedPasteMode: boolean } } } })._core
+      core.coreService.decPrivateModes.bracketedPasteMode = true
+      expect(pasteTerminalText(terminal, 'first\n\nlast', 'claude')).toBe(true)
+    })
+
+    expect(input).toBe('\x1b[200~first\r\rlast\x1b[201~')
+  })
+
+  it('does not send multiline input to an AI CLI without safe paste mode', () => {
+    const input = terminalInput((terminal) => {
+      expect(pasteTerminalText(terminal, 'first\n\nlast', 'antigravity')).toBe(false)
+    })
+
+    expect(input).toBe('')
+  })
+
+  it('keeps ordinary single-line and shell paste behavior', () => {
+    expect(terminalInput((terminal) => {
+      expect(pasteTerminalText(terminal, 'hello', 'codex')).toBe(true)
+    })).toBe('hello')
+    expect(terminalInput((terminal) => {
+      expect(pasteTerminalText(terminal, 'echo one\necho two')).toBe(true)
+    })).toBe('echo one\recho two')
+  })
+})
 
 describe('pasteTerminalFromContextMenu', () => {
   it('有选区时右键只打开复制菜单，不读取剪贴板或粘贴', async () => {

@@ -671,7 +671,7 @@ export function SettingsModal() {
               <div>
                 <div className="label">关于与更新</div>
                 <div className="desc">
-                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.2'} · {channelText(updateRuntime?.channel)}
+                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.3'} · {channelText(updateRuntime?.channel)}
                   {updateRuntime && !updateRuntime.packaged ? '（开发态按免安装提示）' : ''}
                 </div>
                 {updateResult && (

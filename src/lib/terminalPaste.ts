@@ -1,7 +1,31 @@
 type ContextMenuEvent = Pick<MouseEvent, 'preventDefault' | 'stopPropagation'>
 type MouseButtonEvent = Pick<MouseEvent, 'button' | 'stopPropagation'>
-type PasteTarget = { paste: (text: string) => void; focus: () => void }
+type PasteTarget = { paste: (text: string) => boolean | void; focus: () => void }
 type ContextMenuTarget = PasteTarget & { getSelection: () => string }
+
+type TerminalPasteInput = {
+  paste: (text: string) => void
+  input: (data: string) => void
+  modes: { bracketedPasteMode: boolean }
+}
+
+/** Keep multiline AI input from being interpreted as separate Enter presses. */
+export function pasteTerminalText(terminal: TerminalPasteInput, text: string, family?: string): boolean {
+  if (!text) return false
+  if (!/[\r\n]/.test(text) || !family) {
+    terminal.paste(text)
+    return true
+  }
+  if (family === 'codex') {
+    // Codex on Windows can submit CR-separated lines even during bracketed paste.
+    // LF keeps the blank lines without introducing Enter (CR) input events.
+    terminal.input(`\x1b[200~${text.replace(/\r\n?|\n/g, '\n')}\x1b[201~`)
+    return true
+  }
+  if (!terminal.modes.bracketedPasteMode) return false
+  terminal.paste(text)
+  return true
+}
 
 /** 阻止右键鼠标事件先被启用鼠标协议的终端应用处理。 */
 export function suppressTerminalRightMouseEvent(event: MouseButtonEvent): boolean {
@@ -20,7 +44,7 @@ export async function pasteTerminalFromContextMenu(
   event.stopPropagation()
   const text = await readClipboardText()
   if (!text) return false
-  terminal.paste(text)
+  if (terminal.paste(text) === false) return false
   terminal.focus()
   return true
 }

@@ -79,6 +79,8 @@
 
 /* ---------- 顶栏 ---------- */
 .topbar {
+  position: relative;
+  z-index: 30;
   height: var(--topbar-h);
   flex-shrink: 0;
   background: var(--surface);
@@ -87,7 +89,7 @@
   align-items: center;
   padding: 0 var(--sp-4);
   gap: var(--sp-3);
-  overflow: hidden;
+  overflow: visible;
 }
 .t-btn {
   flex-shrink: 0;

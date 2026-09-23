@@ -18,7 +18,7 @@ import {
 } from '@/lib/launchAttempts'
 import { quoteForShell } from '@/lib/shellQuote'
 import { handleTerminalKeyEvent, shouldBlockTerminalMouseMode } from '@/lib/terminalKeyHandler'
-import { handleTerminalContextMenu, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
+import { handleTerminalContextMenu, pasteTerminalText, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
 import { registerTerminalTarget } from '@/lib/terminalRegistry'
 import type { PermissionChoice, TerminalTab } from '@/types'
 
@@ -56,6 +56,7 @@ function termTheme() {
 export function TerminalView({ terminal, active }: { terminal: TerminalTab; active: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const pasteTargetRef = useRef<{ paste: (text: string) => boolean; focus: () => void; getSelection: () => string } | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
   const resolveTheme = useAppStore((s) => s.resolveTheme)
   const themeKey = resolveTheme()
@@ -101,10 +102,17 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       : undefined
     termRef.current = term
     fitRef.current = fit
-    const unregisterTarget = registerTerminalTarget(terminal.id, {
-      paste: (text: string) => term.paste(text),
+    const pasteTarget = {
+      paste: (text: string) => {
+        const pasted = pasteTerminalText(term, text, terminal.kind === 'ai' ? terminalFamily : undefined)
+        if (!pasted) useAppStore.getState().showToast('当前 CLI 未启用安全多行粘贴，已阻止自动发送；请等待其启动完成后重试', 'info')
+        return pasted
+      },
       focus: () => term.focus(),
-    })
+      getSelection: () => term.getSelection(),
+    }
+    pasteTargetRef.current = pasteTarget
+    const unregisterTarget = registerTerminalTarget(terminal.id, pasteTarget)
 
     let cleanup: (() => void) | undefined
     let disposed = false
@@ -396,6 +404,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     return () => {
       disposed = true
       unregisterTarget()
+      pasteTargetRef.current = null
       cancelAnimationFrame(raf)
       ro.disconnect()
       mouseModeSet?.dispose()
@@ -456,11 +465,11 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     ptyClient.write(terminal.id, paths.map(quoteForShell).join(' ') + ' ')
   }
   const onContextMenu = (e: React.MouseEvent) => {
-    const term = termRef.current
-    if (!term || terminal.orphaned) return
+    const pasteTarget = pasteTargetRef.current
+    if (!pasteTarget || terminal.orphaned) return
     void handleTerminalContextMenu(
       e,
-      term,
+      pasteTarget,
       () => {
         if (window.ringcode?.readClipboardText) return window.ringcode.readClipboardText()
         return navigator.clipboard.readText()
@@ -471,6 +480,15 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
   const onRightMouseEventCapture = (e: React.MouseEvent) => {
     suppressTerminalRightMouseEvent(e)
   }
+  const onPasteCapture = (e: React.ClipboardEvent) => {
+    const pasteTarget = pasteTargetRef.current
+    if (!pasteTarget || terminal.orphaned) return
+    const text = e.clipboardData.getData('text/plain')
+    if (!text) return
+    e.preventDefault()
+    e.stopPropagation()
+    pasteTarget.paste(text)
+  }
 
   return (
     <div
@@ -480,6 +498,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       onMouseDownCapture={onRightMouseEventCapture}
       onMouseUpCapture={onRightMouseEventCapture}
       onContextMenuCapture={onContextMenu}
+      onPasteCapture={onPasteCapture}
     >
       <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       {terminal.orphaned ? (

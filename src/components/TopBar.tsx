@@ -90,14 +90,20 @@ export function TopBar() {
                 key={w.id}
                 className="nav-item"
                 style={{ margin: 0, borderRadius: 6 }}
-                onClick={() => pickWorkspace(w.id)}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  pickWorkspace(w.id)
+                }}
               >
                 <span className="dot" style={w.id === activeWorkspaceId ? { background: 'var(--accent)', borderColor: 'var(--accent)' } : undefined} />
                 {w.name}
               </div>
             ))}
             <div style={{ height: 1, background: 'var(--border)', margin: '6px 0' }} />
-            <div className="nav-item" style={{ margin: 0, borderRadius: 6 }} onClick={openFolder}>
+            <div className="nav-item" style={{ margin: 0, borderRadius: 6 }} onClick={(e) => {
+              e.stopPropagation()
+              void openFolder()
+            }}>
               <span style={{ width: 14, textAlign: 'center' }}>＋</span>打开文件夹…
             </div>
           </div>
