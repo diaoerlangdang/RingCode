@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import { sqliteStorage } from '@/lib/sqliteStorage'
+import { sqliteStorage, transcriptKey } from '@/lib/sqliteStorage'
 import { rehydratePersistedSlice, shouldDiscardEmptySession } from '@/lib/sessionLifecycle'
 import { agentById, migrateProfilesForBuiltinAgents, seedProfilesFromAgents, terminalTitleFor } from '@/lib/agents'
 import { familyOfTool, isCloneAgent, migrateSessionCloneFields } from '@/lib/agentFamily'
@@ -359,7 +359,9 @@ export const useAppStore = create<AppState>()(
         })),
       appendTranscript: (id, chunk) => {
         const cur = get().sessions.find((x) => x.id === id)
-        const next = (cur?.transcript ?? '') + chunk
+        if (!cur) return
+        const next = cur.transcript + chunk
+        void sqliteStorage.setItem(transcriptKey(id), next.slice(-200_000))
         set((s) => ({
           sessions: s.sessions.map((x) =>
             x.id === id ? { ...x, transcript: next.slice(-200_000), lastActiveAt: now() } : x,
@@ -399,11 +401,13 @@ export const useAppStore = create<AppState>()(
         })),
       toggleFavoriteSession: (id) =>
         set((s) => ({ sessions: s.sessions.map((x) => (x.id === id ? { ...x, favorite: !x.favorite } : x)) })),
-      deleteSession: (id) =>
+      deleteSession: (id) => {
+        void sqliteStorage.removeItem(transcriptKey(id))
         set((s) => ({
           sessions: s.sessions.filter((x) => x.id !== id),
           activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
-        })),
+        }))
+      },
       setActiveSession: (id) => set({ activeSessionId: id }),
       setLastCloneId: (id, lastCloneId) =>
         set((s) => ({
@@ -676,7 +680,8 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         workspaces: s.workspaces,
         activeWorkspaceId: s.activeWorkspaceId,
-        sessions: s.sessions,
+        // Transcript text is saved per session to avoid serializing all history on every PTY update.
+        sessions: s.sessions.map(({ transcript: _transcript, ...session }) => session),
         historyAliases: s.historyAliases,
         historyExpandedGroups: s.historyExpandedGroups,
         profiles: s.profiles,

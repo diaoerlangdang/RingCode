@@ -7,6 +7,8 @@ import { useAppStore } from '@/store/useAppStore'
 import { ptyClient } from '@/lib/ptyClient'
 import { MockPty, type MockTool } from '@/lib/mockPty'
 import { createTranscriptBuffer } from '@/lib/transcriptBuffer'
+import { createNativeSessionLookup } from '@/lib/nativeSessionLookup'
+import { syncTerminalViewportOnShow } from '@/lib/terminalViewport'
 import { createConversationInputTracker } from '@/lib/sessionLifecycle'
 import { agentById, buildLaunchArgs, terminalCompatibilityEnv, usesInitialPromptStdin } from '@/lib/agents'
 import { historyRootTool, usesCurrentEntryConfig } from '@/lib/agentFamily'
@@ -116,7 +118,6 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
 
     let cleanup: (() => void) | undefined
     let disposed = false
-    let nativeLookupTimer: ReturnType<typeof setTimeout> | undefined
     let initialPromptTimer: ReturnType<typeof setTimeout> | undefined
     let initialPromptSent = false
     const conversationInput = createConversationInputTracker()
@@ -269,10 +270,10 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       }
       if (terminal.sessionId) useAppStore.getState().setSessionStatus(terminal.sessionId, 'running')
 
-      const findAndLinkNativeSession = async () => {
-        if (!terminal.sessionId || !terminal.tool || action === 'resume' || disposed) return
+      const nativeLink = createNativeSessionLookup(async () => {
+        if (!terminal.sessionId || !terminal.tool || action === 'resume' || disposed) return false
         const current = useAppStore.getState().sessions.find((s) => s.id === terminal.sessionId)
-        if (!current || current.autoTitled === false) return
+        if (!current || current.autoTitled === false) return true
         try {
           const found = await window.ringcode?.historyFindRecent?.({
             tool: historyRootTool(terminal.tool, useAppStore.getState().settings.customAgents ?? []),
@@ -283,15 +284,16 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
           })
           if (found?.sessionId && !disposed) {
             useAppStore.getState().linkNativeSession(current.id, found.sessionId, found.title)
+            return true
           }
         } catch {
           /* 原生历史可能尚未落盘，后续输入/输出会再次尝试 */
         }
-      }
+        return false
+      })
       const scheduleNativeLink = (delay = 1_200) => {
         if (action === 'resume' || !terminal.sessionId) return
-        if (nativeLookupTimer) clearTimeout(nativeLookupTimer)
-        nativeLookupTimer = setTimeout(() => void findAndLinkNativeSession(), delay)
+        nativeLink.schedule(delay)
       }
       scheduleNativeLink()
 
@@ -325,7 +327,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       const d3 = ptyClient.onExit((tabId, code) => {
         if (tabId !== terminal.id) return
         term.write(`\r\n\x1b[38;5;245m[进程已退出，代码 ${code}]\x1b[0m\r\n`)
-        void findAndLinkNativeSession()
+        void nativeLink.run()
         if (terminal.sessionId) {
           const st = useAppStore.getState()
           st.setSessionStatus(terminal.sessionId, code === 0 ? 'ended' : 'failed')
@@ -346,7 +348,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         }
       })
       cleanup = () => {
-        if (nativeLookupTimer) clearTimeout(nativeLookupTimer)
+        nativeLink.dispose()
         if (initialPromptTimer) clearTimeout(initialPromptTimer)
         transcript.flushAll()
         d1.dispose()
@@ -359,6 +361,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       if (!containerRef.current || containerRef.current.clientWidth < 8) return
       try {
         fit.fit()
+        syncTerminalViewportOnShow(term)
         if (ptyClient.isReal) ptyClient.resize(terminal.id, term.cols, term.rows)
       } catch {
         /* 容器尚未量好时 FitAddon 会抛错 */
@@ -425,18 +428,37 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
 
   // 激活时重新 fit + 聚焦
   useEffect(() => {
-    if (active && fitRef.current && containerRef.current?.clientWidth) {
+    if (!active) return
+    const syncOnRestore = () => {
+      if (document.hidden) return
       requestAnimationFrame(() => {
+        const term = termRef.current
+        if (term && containerRef.current?.clientWidth) syncTerminalViewportOnShow(term)
+      })
+    }
+    window.addEventListener('focus', syncOnRestore)
+    document.addEventListener('visibilitychange', syncOnRestore)
+    let raf = 0
+    if (fitRef.current && containerRef.current?.clientWidth) {
+      raf = requestAnimationFrame(() => {
         try {
-          fitRef.current!.fit()
-          if (termRef.current && ptyClient.isReal) {
-            ptyClient.resize(terminal.id, termRef.current.cols, termRef.current.rows)
+          const term = termRef.current
+          if (!term || !fitRef.current) return
+          fitRef.current.fit()
+          syncTerminalViewportOnShow(term)
+          if (ptyClient.isReal) {
+            ptyClient.resize(terminal.id, term.cols, term.rows)
           }
-          termRef.current?.focus()
+          term.focus()
         } catch {
           /* ignore */
         }
       })
+    }
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('focus', syncOnRestore)
+      document.removeEventListener('visibilitychange', syncOnRestore)
     }
   }, [active, terminal.id])
 

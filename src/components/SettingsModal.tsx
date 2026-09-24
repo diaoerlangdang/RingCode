@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useAppStore, uid } from '@/store/useAppStore'
+import { sqliteStorage, transcriptKey } from '@/lib/sqliteStorage'
 import { listAgents, seedProfilesFromAgents } from '@/lib/agents'
 import { isCloneAgent, isCloneFamily, cloneableSource } from '@/lib/agentFamily'
 import { CloneModelField } from '@/components/CloneModelField'
@@ -171,6 +172,9 @@ export function SettingsModal() {
 
   const clearData = async () => {
     if (!(await showConfirm('清除本地数据？将重置工作区、会话、配置与布局（不可恢复）。'))) return
+    await Promise.all(useAppStore.getState().sessions.map((session) =>
+      sqliteStorage.removeItem(transcriptKey(session.id)),
+    ))
     if (window.ringcode?.isElectron) await window.ringcode.storeDel('ringcode-store')
     else localStorage.removeItem('ringcode-store')
     window.location.reload()
@@ -671,7 +675,7 @@ export function SettingsModal() {
               <div>
                 <div className="label">关于与更新</div>
                 <div className="desc">
-                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.3'} · {channelText(updateRuntime?.channel)}
+                  金刚琢 RingCode · v{updateRuntime?.currentVersion ?? '0.4.4'} · {channelText(updateRuntime?.channel)}
                   {updateRuntime && !updateRuntime.packaged ? '（开发态按免安装提示）' : ''}
                 </div>
                 {updateResult && (
