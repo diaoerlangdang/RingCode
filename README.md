@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.5-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.6-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2B%20(x64)-0078D6.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Electron-31-47848F.svg" alt="Electron">
   <img src="https://img.shields.io/badge/React-18-61DAFB.svg" alt="React">
@@ -112,7 +112,7 @@ npm run dev
 
 #### 检查与打包
 ```bash
-# 执行类型检查与测试（当前 61 个文件 / 281 项，含 Electron 更新弹窗回归测试）
+# 执行类型检查与测试（当前 62 个文件 / 282 项，含启动持久化与 Electron 更新弹窗回归测试）
 npm run typecheck
 npm test
 
