@@ -110,7 +110,7 @@ Claude/Codex 的规范关联键为 `family + nativeSessionId`；各家族默认�
 - Claude 分身默认：URL 空时清继承 BASE_URL/AUTH_TOKEN，仅注 ANTHROPIC_API_KEY；URL 非空时设置 ANTHROPIC_BASE_URL，清 API_KEY，仅注 ANTHROPIC_AUTH_TOKEN。设置可覆盖凭据变量，但每次只选一个注入目标，不把同一 Key 填入全部敏感变量。
 - Claude Code 会用 `~/.claude/settings.json` 的 `env` **盖掉**进程注入的 `ANTHROPIC_*`。分身启动时写入 `~\.ringcode\claude-settings\<cloneId>.json`，并以 `--settings` 传入；不改用户主 `settings.json`。
 - 分身清除父环境 CODEX_HOME / Claude 配置目录覆写，并阻止分身配置重新设置隔离目录，始终使用默认家目录。原版检测到会把历史写到默认目录外的设置时应提示目录冲突，不能把隔离目录静默当作默认扫描范围。
-- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 滚动兼容处理。Codex 不走 settings.env，用 `--profile` overlay；每个分身 profile 同时绑定独立的 `model_catalog_json`，避免分身供应商刷新共享 `models_cache.json` 后污染 Codex 桌面版模型列表。使用原版 Codex 在 RingCode 内 resume/fork 分身会话时，显式传入 `model_provider="openai"`，让运行时切回官方 provider，同时保留磁盘历史身份。不得把分身 provider 写进用户主 `config.toml`。
+- Codex 分身按 family 使用与内置 Codex 相同的 WT_SESSION 和 `--no-alt-screen` 滚动兼容处理；new/resume/fork 均使用 inline 模式保留终端历史，适配 Codex CLI 0.161.0 的整屏模式，已有 `--no-alt-screen` 参数不重复追加。Codex 不走 settings.env，用 `--profile` overlay；每个分身 profile 同时绑定独立的 `model_catalog_json`，避免分身供应商刷新共享 `models_cache.json` 后污染 Codex 桌面版模型列表。使用原版 Codex 在 RingCode 内 resume/fork 分身会话时，显式传入 `model_provider="openai"`，让运行时切回官方 provider，同时保留磁盘历史身份。不得把分身 provider 写进用户主 `config.toml`。
 - 当前权限选择是本次参数的唯一来源，旧 Session 权限和冲突 profile args 不能覆盖它。
 - 自定义模型使用当前值；“CLI 默认”明确表示跟随 CLI 当前默认值，空模型不视为缺配置。创建/编辑分身可按当前 URL+Key 拉取模型列表（失败可手填）。
 

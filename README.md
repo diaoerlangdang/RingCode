@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.4-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.5-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2B%20(x64)-0078D6.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Electron-31-47848F.svg" alt="Electron">
   <img src="https://img.shields.io/badge/React-18-61DAFB.svg" alt="React">
@@ -82,7 +82,7 @@
 | 免安装 | `RingCode-<版本>-x64.zip` | 解压后运行 `金刚琢.exe` |
 | 安装版 | `RingCode-<版本>-x64.exe` | NSIS 安装，带开始菜单快捷方式 |
 
-设置里「检查更新」会按**当前运行的是免安装还是安装版**，指向同一种包装。没有对应附件时只打开发布页，不会自动覆盖本地文件。
+设置里「检查更新」会读取 GitHub 最新 Release，并以 Markdown 展示更新说明。安装版和免安装版都支持在应用内下载并启动标准安装程序；没有安装包附件时会提示暂时无法升级。免安装版手动分发仍使用 ZIP。
 
 1. 免安装：下载 zip，解压到任意目录，双击 `金刚琢.exe`（无需 Node.js 或 C++ 环境）。
 2. 安装版：运行 exe，按向导安装。
@@ -112,7 +112,7 @@ npm run dev
 
 #### 检查与打包
 ```bash
-# 执行类型检查与单元测试（当前 54 个文件 / 251 项）
+# 执行类型检查与测试（当前 61 个文件 / 281 项，含 Electron 更新弹窗回归测试）
 npm run typecheck
 npm test
 
@@ -131,7 +131,7 @@ npm run electron:build
 | Agent | 推荐安装 / 获取方式 | 核心适配特性 |
 | --- | --- | --- |
 | **Claude Code** | `npm install -g @anthropic-ai/claude-code` | 解析 `history.jsonl`，支持 `--resume` / `--fork-session`；可复制分身 |
-| **Codex** | 官方 Codex CLI（`codex`） | `resume` / `fork`；分身使用独立 overlay 与模型目录，原版续聊显式切回官方 provider，不改用户主 `config.toml` 或桌面版模型缓存 |
+| **Codex** | 官方 Codex CLI（`codex`） | `resume` / `fork`；原版与分身统一使用 `--no-alt-screen` 保留终端滚动历史；分身使用独立 overlay 与模型目录，原版续聊显式切回官方 provider，不改用户主 `config.toml` 或桌面版模型缓存 |
 | **OpenCode** | 参考官方 OpenCode CLI 安装文档 | 自动捕获会话历史 |
 | **Antigravity CLI** | 安装 Google Antigravity 官方 CLI (`agy`) | 自动索引 `transcript.jsonl` |
 | **Hermes** | 接入 Hermes 自动化 Agent 终端 | 自动化调度 |

@@ -336,21 +336,19 @@ export const useAppStore = create<AppState>()(
               : x,
           ),
         })),
-      linkNativeSession: (id, nativeSessionId, nativeTitle) =>
+      linkNativeSession: (id, nativeSessionId, nativeTitle) => {
+        const session = get().sessions.find((x) => x.id === id)
+        if (!session) return
+        const next = applyAutoSessionTitle(session, nativeTitle)
+        const title = next?.title ?? session.title
+        const nativeTitled = next?.nativeTitled ?? session.nativeTitled
+        if (session.nativeSessionId === nativeSessionId && session.resumable && session.title === title && session.nativeTitled === nativeTitled) return
         set((s) => ({
-          sessions: s.sessions.map((x) => {
-            if (x.id !== id) return x
-            const next = applyAutoSessionTitle(x, nativeTitle)
-            return {
-              ...x,
-              nativeSessionId,
-              resumable: true,
-              title: next?.title ?? x.title,
-              nativeTitled: next?.nativeTitled ?? x.nativeTitled,
-              lastActiveAt: now(),
-            }
-          }),
-        })),
+          sessions: s.sessions.map((x) => x.id === id
+            ? { ...x, nativeSessionId, resumable: true, title, nativeTitled, lastActiveAt: now() }
+            : x),
+        }))
+      },
       markSessionConversationStarted: (id) =>
         set((s) => ({
           sessions: s.sessions.map((x) =>
@@ -364,7 +362,8 @@ export const useAppStore = create<AppState>()(
         void sqliteStorage.setItem(transcriptKey(id), next.slice(-200_000))
         set((s) => ({
           sessions: s.sessions.map((x) =>
-            x.id === id ? { ...x, transcript: next.slice(-200_000), lastActiveAt: now() } : x,
+            // PTY 重绘也会写入正文，不能将每批输出当作历史列表的排序活动。
+            x.id === id ? { ...x, transcript: next.slice(-200_000) } : x,
           ),
         }))
       },
@@ -492,13 +491,20 @@ export const useAppStore = create<AppState>()(
           const terminal = s.terminals[idx]
           const next = s.terminals.filter((t) => t.id !== id)
           const session = terminal?.sessionId ? s.sessions.find((item) => item.id === terminal.sessionId) : undefined
-          const discardSession = !!session && shouldDiscardEmptySession(session, terminal)
+          const hasLiveTerminal = !!session && next.some((t) => t.sessionId === session.id && !t.orphaned)
+          const discardSession = !!session && !hasLiveTerminal && shouldDiscardEmptySession(session, terminal)
+          // 卸载终端会先取消退出订阅，主动关闭时必须在这里同步会话状态。
+          const interruptSession = !!session && !hasLiveTerminal && session.status === 'running'
           let active = s.activeTerminalId
           if (active === id) active = next[idx] ? next[idx].id : next[idx - 1]?.id ?? next[0]?.id ?? null
           const split = s.splitTerminalId === id ? null : s.splitTerminalId
           return {
             terminals: next,
-            sessions: discardSession ? s.sessions.filter((item) => item.id !== session.id) : s.sessions,
+            sessions: discardSession
+              ? s.sessions.filter((item) => item.id !== session.id)
+              : interruptSession
+                ? s.sessions.map((item) => item.id === session.id ? { ...item, status: 'interrupted' as const, lastActiveAt: now() } : item)
+                : s.sessions,
             activeSessionId: discardSession && s.activeSessionId === session.id ? null : s.activeSessionId,
             activeTerminalId: active,
             splitTerminalId: split,

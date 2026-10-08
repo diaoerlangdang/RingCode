@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { useAppStore } from '@/store/useAppStore'
 import { agentById, agentLabel, listAgents, supportsNativeFork } from '@/lib/agents'
 import { isCloneAgent, usesCurrentEntryConfig } from '@/lib/agentFamily'
@@ -135,6 +136,9 @@ function diskExpansionGroups(
 
 export function RightPanel() {
   const sessions = useAppStore((s) => s.sessions)
+  const localDirectoryPaths = useAppStore(useShallow((s) =>
+    [...new Set(s.sessions.map((session) => session.cwd.trim()).filter(Boolean))].sort(),
+  ))
   const historyAliases = useAppStore((s) => s.historyAliases)
   const historyExpandedGroups = useAppStore((s) => s.historyExpandedGroups)
   const activeSessionId = useAppStore((s) => s.activeSessionId)
@@ -206,20 +210,6 @@ export function RightPanel() {
     [sessions, activeWorkspacePath, query, toolFilter, extra],
   )
 
-  const allLocalGroups = useMemo(
-    () =>
-      groupHistoryItems(sessions, {
-        getId: (session) => session.id,
-        getDirectory: (session) => session.cwd,
-        getUpdatedAt: (session) => session.lastActiveAt,
-        getTool: (session) => session.family || session.tool,
-        getSearchText: (session) =>
-          `${session.title}\n${cleanTranscript(session.transcript)}\n${agentLabel(session.family || session.tool, extra)}\n${agentLabel(session.lastCloneId || session.tool, extra)}`,
-        activeWorkspacePath,
-      }),
-    [sessions, activeWorkspacePath, extra],
-  )
-
   const diskGroups = useMemo(
     () =>
       sortHistoryGroupsForWorkspace(
@@ -278,7 +268,7 @@ export function RightPanel() {
   )
 
   const refreshLocalDirectories = useCallback(async () => {
-    const paths = allLocalGroups.map((group) => group.path).filter(Boolean)
+    const paths = localDirectoryPaths
     if (!paths.length || !window.ringcode?.historyCheckDirectories) {
       setLocalAvailability({})
       return
@@ -288,7 +278,7 @@ export function RightPanel() {
     } catch {
       setLocalAvailability({})
     }
-  }, [allLocalGroups])
+  }, [localDirectoryPaths])
 
   const refreshDiskGroups = useCallback(
     async (force = false) => {

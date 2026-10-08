@@ -207,12 +207,14 @@ describe('启动参数与滚动兼容', () => {
       'ringcode-a',
       'resume',
       'x1',
+      '--no-alt-screen',
     ])
     expect(buildLaunchArgs(sourceCodex, '', { action: 'fork', nativeSessionId: 'x1', codexProfile: 'ringcode-a', permission: 'dangerous' })).toEqual([
       '--profile',
       'ringcode-a',
       'fork',
       'x1',
+      '--no-alt-screen',
       '--dangerously-bypass-approvals-and-sandbox',
     ])
   })

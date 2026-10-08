@@ -33,16 +33,18 @@ describe('agent registry', () => {
     ])
   })
 
-  it('Codex 保留原生终端模式并按权限追加参数', () => {
+  it('Codex 使用 inline 终端模式并按权限追加参数', () => {
     const a = agentById('codex')!
-    expect(buildLaunchArgs(a, '', { permission: 'default' })).toEqual([])
+    expect(buildLaunchArgs(a, '', { permission: 'default' })).toEqual(['--no-alt-screen'])
     expect(buildLaunchArgs(a, '', { permission: 'auto' })).toEqual([
+      '--no-alt-screen',
       '--ask-for-approval',
       'never',
       '--sandbox',
       'workspace-write',
     ])
     expect(buildLaunchArgs(a, '', { permission: 'dangerous' })).toEqual([
+      '--no-alt-screen',
       '--dangerously-bypass-approvals-and-sandbox',
     ])
   })
@@ -51,6 +53,24 @@ describe('agent registry', () => {
     expect(terminalCompatibilityEnv('codex', 'tab-1')).toEqual({ WT_SESSION: 'RingCode-tab-1' })
     expect(terminalCompatibilityEnv('claude', 'tab-1')).toEqual({})
     expect(terminalCompatibilityEnv('hermes', 'tab-1')).toEqual({})
+  })
+
+  it.each(['new', 'resume', 'fork'] as const)('Codex 原版和分身 %s 使用 inline 模式保留终端历史', (action) => {
+    const codex = agentById('codex')!
+    const clone = { ...codex, id: 'codex-clone', sourceFamily: 'codex' as const }
+    for (const agent of [codex, clone]) {
+      const args = buildLaunchArgs(agent, '', { action, nativeSessionId: 'x1', initialPrompt: 'hello' })
+      expect(args).toContain('--no-alt-screen')
+      if (action === 'new') expect(args.indexOf('--no-alt-screen')).toBeLessThan(args.indexOf('hello'))
+      else expect(args.slice(0, 2)).toEqual([action, 'x1'])
+    }
+  })
+
+  it('Codex 显式 inline 参数不重复，其他 CLI 不追加该参数', () => {
+    expect(buildLaunchArgs(agentById('codex')!, '--no-alt-screen').filter((arg) => arg === '--no-alt-screen')).toHaveLength(1)
+    for (const id of ['claude', 'opencode', 'antigravity', 'hermes']) {
+      expect(buildLaunchArgs(agentById(id)!, '')).not.toContain('--no-alt-screen')
+    }
   })
 
   it('Hermes 的 Auto/危险模式使用 --yolo', () => {
@@ -89,8 +109,8 @@ describe('agent registry', () => {
 
   it('跟随默认模型时不传模型，显式参数优先于模型字段', () => {
     const a = agentById('codex')!
-    expect(buildLaunchArgs(a, '', { modelMode: 'default', model: 'gpt-5' })).toEqual([])
-    expect(buildLaunchArgs(a, '--model custom', { modelMode: 'custom', model: 'ignored' })).toEqual(['--model', 'custom'])
+    expect(buildLaunchArgs(a, '', { modelMode: 'default', model: 'gpt-5' })).toEqual(['--no-alt-screen'])
+    expect(buildLaunchArgs(a, '--model custom', { modelMode: 'custom', model: 'ignored' })).toEqual(['--no-alt-screen', '--model', 'custom'])
   })
 
   it('resume 保留会话原来的权限模式', () => {
@@ -112,15 +132,16 @@ describe('agent registry', () => {
       'c1',
       '--fork-session',
     ])
-    expect(buildLaunchArgs(codex, '', { action: 'resume', nativeSessionId: 'x1' })).toEqual(['resume', 'x1'])
-    expect(buildLaunchArgs(codex, '', { action: 'fork', nativeSessionId: 'x1' })).toEqual(['fork', 'x1'])
+    expect(buildLaunchArgs(codex, '', { action: 'resume', nativeSessionId: 'x1' })).toEqual(['resume', 'x1', '--no-alt-screen'])
+    expect(buildLaunchArgs(codex, '', { action: 'fork', nativeSessionId: 'x1' })).toEqual(['fork', 'x1', '--no-alt-screen'])
     expect(buildLaunchArgs(codex, '', { action: 'resume', nativeSessionId: 'x1', codexProvider: 'openai' })).toEqual([
       '-c',
       'model_provider="openai"',
       'resume',
       'x1',
+      '--no-alt-screen',
     ])
-    expect(buildLaunchArgs(codex, '', { action: 'new', codexProvider: 'openai' })).toEqual([])
+    expect(buildLaunchArgs(codex, '', { action: 'new', codexProvider: 'openai' })).toEqual(['--no-alt-screen'])
     expect(buildLaunchArgs(hermes, '', { action: 'resume', nativeSessionId: 'h1' })).toEqual(['--resume', 'h1'])
     expect(supportsNativeFork(claude)).toBe(true)
     expect(supportsNativeFork(codex)).toBe(true)

@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { marked } from 'marked'
+import DOMPurify from 'dompurify'
 import { useAppStore } from '@/store/useAppStore'
 import {
   APP_UPDATE_AVAILABLE_EVENT,
@@ -26,6 +28,10 @@ export function UpdateModal() {
   const [progress, setProgress] = useState(0)
   const [status, setStatus] = useState('')
   const releaseDate = useMemo(() => formatReleaseDate(result?.publishedAt ?? null), [result?.publishedAt])
+  const releaseNotesHtml = useMemo(() => {
+    const raw = marked.parse(result?.releaseNotes || '本次发布未填写更新说明。', { async: false, gfm: true, breaks: false })
+    return DOMPurify.sanitize(raw, { FORBID_TAGS: ['script', 'style', 'iframe'], FORBID_ATTR: ['onerror', 'onload'] })
+  }, [result?.releaseNotes])
 
   useEffect(() => {
     const api = window.ringcode
@@ -140,7 +146,23 @@ export function UpdateModal() {
 
         <div className="update-notes" aria-label="更新内容">
           <div className="update-notes-title">{result.releaseName || '本次更新内容'}</div>
-          <pre>{result.releaseNotes || '本次发布未填写更新说明。'}</pre>
+          <div
+            className="update-notes-body"
+            dangerouslySetInnerHTML={{ __html: releaseNotesHtml }}
+            onClick={(event) => {
+              const href = (event.target as Element).closest('a')?.getAttribute('href')
+              if (href == null) return
+              event.preventDefault()
+              try {
+                const url = new URL(href, result.releaseUrl)
+                if (url.protocol === 'https:' || url.protocol === 'http:') {
+                  window.open(url.href, '_blank', 'noopener,noreferrer')
+                }
+              } catch {
+                // 无效的 Release 链接不跳转当前应用。
+              }
+            }}
+          />
         </div>
 
         {result.channel === 'portable' && phase === 'ready' && (

@@ -219,7 +219,11 @@ export function buildLaunchArgs(
     action !== 'new' && opts.codexProvider?.trim()
       ? ['-c', 'model_provider=' + JSON.stringify(opts.codexProvider.trim())]
       : []
-  const args = [...profileFlag, ...providerFlag, ...sessionArgsFor(agent, action, nativeSessionId), ...profile]
+  // Codex 的整屏 TUI 在 ConPTY -> xterm 中不保留 scrollback；inline 模式才能滚动历史。
+  const terminalFlags = (agent.sourceFamily || agent.id) === 'codex' && !profile.includes('--no-alt-screen')
+    ? ['--no-alt-screen']
+    : []
+  const args = [...profileFlag, ...providerFlag, ...sessionArgsFor(agent, action, nativeSessionId), ...terminalFlags, ...profile]
 
   if (opts.modelMode === 'custom' && opts.model?.trim()) {
     const flags = templateFlags(agent.modelArgs)
