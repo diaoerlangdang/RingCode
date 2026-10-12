@@ -1962,6 +1962,90 @@
   color: var(--text-2);
 }
 
+/* Markdown document tools, outline, and locally rendered diagrams. */
+.markdown-document {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.document-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px var(--sp-3);
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+}
+.document-filename {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-2);
+}
+.markdown-layout {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+.markdown-outline {
+  width: min(220px, 35%);
+  min-width: 110px;
+  overflow: auto;
+  flex-shrink: 0;
+  padding: var(--sp-2) 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+}
+.outline-heading {
+  display: block;
+  width: 100%;
+  padding: 6px 12px;
+  text-align: left;
+  color: var(--text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.outline-heading:hover { background: var(--surface-hover); }
+.outline-heading.active { color: var(--accent-text); background: var(--accent-soft); }
+.outline-empty { padding: var(--sp-3); color: var(--text-3); }
+.markdown-body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  border-left: none;
+  overflow-wrap: anywhere;
+}
+.markdown-body img { max-width: 100%; height: auto; }
+.markdown-body :is(h1, h2, h3, h4, h5, h6) { scroll-margin-top: 16px; }
+.markdown-diagram {
+  margin: var(--sp-3) 0;
+  padding: var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: auto;
+}
+.diagram-render { width: max-content; min-width: 100%; text-align: center; }
+.diagram-render svg { display: block; margin: 0 auto; }
+.diagram-status { color: var(--text-3); font-size: 12px; }
+.diagram-status.error { color: var(--error); }
+.body:has(.document-maximized) { visibility: hidden; }
+.document-maximized {
+  position: fixed;
+  top: var(--topbar-h);
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 20;
+  visibility: visible;
+  background: var(--surface);
+}
+
 /* ---------- 设置面板 ---------- */
 .settings-overlay {
   position: fixed;

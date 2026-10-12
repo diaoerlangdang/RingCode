@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/store/useAppStore'
+import { useEditorStore } from '@/store/useEditorStore'
 import { Splitter } from './Splitter'
 import { FileManager } from './FileManager'
 import { EditorPane } from './EditorPane'
@@ -23,6 +24,9 @@ export function CenterPane() {
   const setLayout = useAppStore((s) => s.setLayout)
   const centerTopTab = useAppStore((s) => s.centerTopTab)
   const setCenterTopTab = useAppStore((s) => s.setCenterTopTab)
+  const [maximized, setMaximized] = useState<'editor' | 'preview' | 'split-preview' | null>(null)
+  const hasMarkdown = useEditorStore((s) => /\.(md|markdown)$/i.test(s.files.find((file) => file.id === s.activeId)?.name ?? ''))
+  const toggleMaximize = (pane: NonNullable<typeof maximized>) => setMaximized((current) => current === pane ? null : pane)
   const ref = useRef<HTMLDivElement>(null)
   const fmRef = useRef<HTMLDivElement>(null)
   const splitRef = useRef(layout.centerSplit)
@@ -40,7 +44,16 @@ export function CenterPane() {
 
   useEffect(() => {
     setVisitedTabs((prev) => (prev[centerTopTab] ? prev : { ...prev, [centerTopTab]: true }))
+    setMaximized(null)
   }, [centerTopTab])
+
+  useEffect(() => {
+    if (!layout.editorPreviewSplit && maximized === 'split-preview') setMaximized(null)
+  }, [layout.editorPreviewSplit, maximized])
+
+  useEffect(() => {
+    if (!hasMarkdown) setMaximized(null)
+  }, [hasMarkdown])
 
   const renderTop = () => (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, position: 'relative' }}>
@@ -51,22 +64,22 @@ export function CenterPane() {
       )}
       {visitedTabs['editor'] && (
         <div style={{ display: centerTopTab === 'editor' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'row' }}>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-            <EditorPane />
+          <div className={maximized === 'editor' ? 'document-maximized' : undefined} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+            <EditorPane maximized={maximized === 'editor'} onMaximize={() => toggleMaximize('editor')} />
           </div>
           {layout.editorPreviewSplit && (
             <>
               <div style={{ width: 1, background: 'var(--border)' }} />
-              <div style={{ flex: 1, minWidth: 0, overflow: 'auto' }}>
-                <PreviewPane />
+              <div className={maximized === 'split-preview' ? 'document-maximized' : undefined} style={{ flex: 1, minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'auto' }}>
+                <PreviewPane compact maximized={maximized === 'split-preview'} onMaximize={() => toggleMaximize('split-preview')} />
               </div>
             </>
           )}
         </div>
       )}
       {visitedTabs['preview'] && (
-        <div style={{ display: centerTopTab === 'preview' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
-          <PreviewPane />
+        <div className={maximized === 'preview' ? 'document-maximized' : undefined} style={{ display: centerTopTab === 'preview' ? 'flex' : 'none', flex: 1, minHeight: 0, flexDirection: 'column' }}>
+          <PreviewPane maximized={maximized === 'preview'} onMaximize={() => toggleMaximize('preview')} />
         </div>
       )}
       {visitedTabs['diff'] && (

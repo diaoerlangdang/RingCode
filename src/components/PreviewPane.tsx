@@ -1,10 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { marked } from 'marked'
 import DOMPurify from 'dompurify'
 import { useEditorStore } from '@/store/useEditorStore'
-import { resolveMarkdownAssetSegments } from '@/lib/markdownAssets'
-
-marked.setOptions({ gfm: true, breaks: false })
+import { MarkdownDocument } from './MarkdownDocument'
 
 type PreviewKind = 'markdown' | 'json' | 'html' | 'csv' | 'text' | 'image' | 'pdf'
 
@@ -55,55 +52,21 @@ const SANITIZE_OPTS = { FORBID_TAGS: ['script', 'style', 'iframe'], FORBID_ATTR:
  * - 纯文本/代码：<pre>
  * - 图片/PDF：通过主进程受控读取为 data URL
  */
-export function PreviewPane() {
+export function PreviewPane({ compact = false, maximized = false, onMaximize }: {
+  compact?: boolean
+  maximized?: boolean
+  onMaximize?: () => void
+}) {
   const files = useEditorStore((s) => s.files)
   const activeId = useEditorStore((s) => s.activeId)
   const active = files.find((f) => f.id === activeId) ?? null
 
   const kind = active ? kindOf(active.name) : 'text'
 
-  const [markdownHtml, setMarkdownHtml] = useState('')
   const html = useMemo(() => {
     if (!active || kind !== 'html') return ''
     return DOMPurify.sanitize(active.content, SANITIZE_OPTS)
   }, [active?.content, active?.id, kind])
-
-  useEffect(() => {
-    if (!active || kind !== 'markdown') {
-      setMarkdownHtml('')
-      return
-    }
-
-    const raw = marked.parse(active.content, { async: false }) as string
-    const sanitized = DOMPurify.sanitize(raw, SANITIZE_OPTS)
-    setMarkdownHtml(sanitized)
-    if (active.handle.kind !== 'electron' || !window.ringcode?.fsReadDataUrl) return
-
-    const rootPath = active.handle.rootPath
-    let alive = true
-    const resolveImages = async () => {
-      const doc = new DOMParser().parseFromString(sanitized, 'text/html')
-      const images = [...doc.querySelectorAll('img[src]')]
-      await Promise.all(
-        images.map(async (image) => {
-          const src = image.getAttribute('src') ?? ''
-          const segments = resolveMarkdownAssetSegments(active.segments, src)
-          if (!segments) return
-          try {
-            const dataUrl = await window.ringcode!.fsReadDataUrl(rootPath, segments)
-            if (dataUrl) image.setAttribute('src', dataUrl)
-          } catch {
-            /* 保留原地址和 alt 文本，单张图片失败不影响整篇预览 */
-          }
-        }),
-      )
-      if (alive) setMarkdownHtml(DOMPurify.sanitize(doc.body.innerHTML, SANITIZE_OPTS))
-    }
-    void resolveImages()
-    return () => {
-      alive = false
-    }
-  }, [active?.content, active?.id, active?.mtime, kind])
 
   const csvRows = useMemo(() => (active && kind === 'csv' ? parseCsv(active.content) : []), [active?.content, active?.id, kind])
 
@@ -213,5 +176,7 @@ export function PreviewPane() {
     )
   }
 
-  return <div className="preview-pane" dangerouslySetInnerHTML={{ __html: kind === 'markdown' ? markdownHtml : html }} />
+  if (kind === 'markdown') return <MarkdownDocument file={active} compact={compact} maximized={maximized} onMaximize={onMaximize} />
+
+  return <div className="preview-pane" dangerouslySetInnerHTML={{ __html: html }} />
 }

@@ -7,7 +7,7 @@ import { getLanguageIdByFilename } from '@/lib/languages'
 import { pasteToTerminal } from '@/lib/terminalRegistry'
 import type { DirHandle } from '@/lib/fs'
 
-export function EditorPane() {
+export function EditorPane({ maximized = false, onMaximize }: { maximized?: boolean; onMaximize?: () => void }) {
   const files = useEditorStore((s) => s.files)
   const activeId = useEditorStore((s) => s.activeId)
   const setActive = useEditorStore((s) => s.setActive)
@@ -112,7 +112,7 @@ export function EditorPane() {
           </div>
         ))}
         <div style={{ flex: 1 }} />
-        {active?.name.toLowerCase().endsWith('.md') && (
+        {active && /\.(md|markdown)$/i.test(active.name) && (
           <div
             className="tab"
             onClick={() => {
@@ -127,6 +127,9 @@ export function EditorPane() {
           >
             {layout.editorPreviewSplit ? '关闭并排' : '并排预览'}
           </div>
+        )}
+        {active && /\.(md|markdown)$/i.test(active.name) && onMaximize && (
+          <button className="tab" onClick={onMaximize}>{maximized ? '还原编辑器' : '最大化编辑器'}</button>
         )}
         {active && (
           <>

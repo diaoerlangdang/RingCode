@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.4.6-blue.svg" alt="Version">
+  <img src="https://img.shields.io/badge/version-0.4.7-blue.svg" alt="Version">
   <img src="https://img.shields.io/badge/Platform-Windows%2010%2B%20(x64)-0078D6.svg" alt="Platform">
   <img src="https://img.shields.io/badge/Electron-31-47848F.svg" alt="Electron">
   <img src="https://img.shields.io/badge/React-18-61DAFB.svg" alt="React">
@@ -59,7 +59,8 @@
 - 📝 **开箱即用的 Monaco 编辑器**
   - 内置 VS Code 同款 Monaco Editor，支持数十种编程语言语法高亮、缩进与诊断。
   - **一键“插入所选” / “插入路径”**：在编辑器中选定任意代码段或文件路径，一键原子注入当前终端 AI 会话，辅助提问更顺手。
-  - 支持 Markdown 实时渲染与分栏对照预览。
+  - 支持 Markdown 实时渲染与分栏对照预览，Mermaid 图表、可折叠标题目录及章节跳转。
+  - Markdown 编辑器与预览支持单独最大化、还原，保留编辑状态及运行中的终端。
 
 - 🔒 **本地优先与系统级安全沙箱**
   - **系统凭据安全托管**：API Key 等敏感凭据直接托付给 Windows 凭据管理器（Credential Manager），渲染层全程不接触明文密钥，不落日志、不进导出。
@@ -112,7 +113,7 @@ npm run dev
 
 #### 检查与打包
 ```bash
-# 执行类型检查与测试（当前 62 个文件 / 282 项，含启动持久化与 Electron 更新弹窗回归测试）
+# 执行类型检查与测试（当前 63 个文件 / 287 项，含 Markdown、面板最大化与真实 ConPTY 回归测试）
 npm run typecheck
 npm test
 
