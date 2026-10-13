@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react'
 import Editor from '@monaco-editor/react'
 import { useEditorStore } from '@/store/useEditorStore'
 import { useAppStore } from '@/store/useAppStore'
-import { ptyClient } from '@/lib/ptyClient'
 import { getLanguageIdByFilename } from '@/lib/languages'
 import { pasteToTerminal } from '@/lib/terminalRegistry'
 import type { DirHandle } from '@/lib/fs'
@@ -56,11 +55,8 @@ export function EditorPane({ maximized = false, onMaximize }: { maximized?: bool
     }
     const pasted = pasteToTerminal(aiTabId, text)
     if (!pasted) {
-      if (!ptyClient.isReal) {
-        showToast('需要桌面环境才能插入到会话', 'error')
-        return
-      }
-      ptyClient.write(aiTabId, text)
+      showToast('终端尚未就绪，请稍后重试', 'error')
+      return
     }
     showToast('已插入到 AI 会话', 'success')
   }

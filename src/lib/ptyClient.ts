@@ -57,6 +57,14 @@ class PtyClient {
     return this.ready
   }
 
+  hasProcess(tabId: string): boolean {
+    return this.tabToPty.has(tabId)
+  }
+
+  processId(tabId: string): string | undefined {
+    return this.tabToPty.get(tabId)
+  }
+
   private bump(tabId: string): number {
     const g = (this.generations.get(tabId) ?? 0) + 1
     this.generations.set(tabId, g)

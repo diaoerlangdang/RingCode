@@ -8,6 +8,11 @@ function isElectron(): boolean {
 }
 
 export const transcriptKey = (id: string): string => `ringcode-transcript:${id}`
+const pendingWrites = new Set<Promise<void>>()
+
+export async function flushStorageWrites(): Promise<void> {
+  while (pendingWrites.size) await Promise.all([...pendingWrites])
+}
 
 async function readItem(name: string): Promise<string | null> {
   if (isElectron()) return window.ringcode!.storeGet(name)
@@ -42,7 +47,9 @@ export const sqliteStorage: StateStorage = {
     return JSON.stringify(saved)
   },
   setItem: async (name: string, value: string): Promise<void> => {
-    await writeItem(name, value)
+    const write = writeItem(name, value)
+    pendingWrites.add(write)
+    try { await write } finally { pendingWrites.delete(write) }
   },
   removeItem: async (name: string): Promise<void> => {
     if (isElectron()) await window.ringcode!.storeDel(name)

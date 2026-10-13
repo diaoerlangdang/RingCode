@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebLinksAddon } from '@xterm/addon-web-links'
@@ -8,7 +8,7 @@ import { ptyClient } from '@/lib/ptyClient'
 import { MockPty, type MockTool } from '@/lib/mockPty'
 import { createTranscriptBuffer } from '@/lib/transcriptBuffer'
 import { createNativeSessionLookup } from '@/lib/nativeSessionLookup'
-import { syncTerminalViewportOnShow } from '@/lib/terminalViewport'
+import { syncTerminalViewport } from '@/lib/terminalViewport'
 import { createConversationInputTracker } from '@/lib/sessionLifecycle'
 import { agentById, buildLaunchArgs, terminalCompatibilityEnv, usesInitialPromptStdin } from '@/lib/agents'
 import { historyRootTool, usesCurrentEntryConfig } from '@/lib/agentFamily'
@@ -23,6 +23,11 @@ import { handleTerminalKeyEvent, shouldBlockTerminalMouseMode } from '@/lib/term
 import { handleTerminalContextMenu, pasteTerminalText, suppressTerminalRightMouseEvent } from '@/lib/terminalPaste'
 import { registerTerminalTarget } from '@/lib/terminalRegistry'
 import type { PermissionChoice, TerminalTab } from '@/types'
+import { TerminalComposer } from './TerminalComposer'
+import { composerPaste, composerPayload, promptCanReceive, promptHasDraft, supportsComposer, terminalHasMenu } from '@/lib/terminalComposer'
+import { emptyTerminalDraft, type ImageAttachment } from '@/lib/attachments'
+import { flushStorageWrites } from '@/lib/sqliteStorage'
+import { nativeInputRegions, visibleTerminalSelection, type PendingNativeInput } from '@/lib/terminalPresentation'
 
 function cssVar(name: string): string {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim()
@@ -55,7 +60,7 @@ function termTheme() {
 }
 
 /** 单个终端实例。Electron 下接真实 PTY（node-pty）；web 回退 MockPty。inactive 时隐藏但保留回滚缓冲。 */
-export function TerminalView({ terminal, active }: { terminal: TerminalTab; active: boolean }) {
+export function TerminalView({ terminal, active, focused }: { terminal: TerminalTab; active: boolean; focused?: boolean }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const pasteTargetRef = useRef<{ paste: (text: string) => boolean; focus: () => void; getSelection: () => string } | null>(null)
@@ -63,6 +68,94 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
   const resolveTheme = useAppStore((s) => s.resolveTheme)
   const themeKey = resolveTheme()
   const reviveTerminal = useAppStore((s) => s.reviveTerminal)
+  const family = useAppStore((s) => terminal.tool ? agentById(terminal.tool, s.settings.customAgents ?? [])?.sourceFamily || terminal.tool : undefined)
+  const enhanced = ptyClient.isReal && terminal.kind === 'ai' && supportsComposer(family)
+  const [nativeMode, setNativeMode] = useState(false)
+  const [menuMode, setMenuMode] = useState(false)
+  const [processReady, setProcessReady] = useState(false)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
+  const modeRef = useRef({ enhanced, nativeMode, menuMode, active, focused })
+  modeRef.current = { enhanced, nativeMode, menuMode, active, focused }
+  const nativeInputDirty = useRef(false)
+  const generatedInput = useRef(false)
+  const outputVersion = useRef(0)
+  const lastOutputAt = useRef(0)
+  const stagedImageIds = useRef<string[]>([])
+  const pendingInput = useRef<PendingNativeInput>()
+  const refreshPresentation = useRef<() => void>(() => {})
+  const previousMenu = useRef(false)
+  const [inputMasks, setInputMasks] = useState<{ top: number; left: number; width: number; height: number; background: string }[]>([])
+  const outputOnly = enhanced && !nativeMode && !menuMode && !terminal.orphaned
+
+  const insertDraft = (text: string) => {
+    const st = useAppStore.getState()
+    const draft = st.terminalDrafts[terminal.id] ?? emptyTerminalDraft
+    st.setTerminalDraft(terminal.id, { ...draft, text: draft.text + text })
+    if (modeRef.current.menuMode) termRef.current?.focus()
+    else inputRef.current?.focus()
+    return true
+  }
+
+  const send = async (text: string, images: ImageAttachment[]): Promise<boolean> => {
+    const term = termRef.current
+    const st = useAppStore.getState()
+    const processId = ptyClient.processId(terminal.id)
+    const sameProcess = () => !!processId && ptyClient.processId(terminal.id) === processId && termRef.current === term
+    if (!term || terminal.orphaned || !ptyClient.hasProcess(terminal.id) || !terminal.sessionId || !st.sessions.some((s) => s.id === terminal.sessionId)) {
+      throw new Error('终端未就绪或会话已结束，草稿已保留')
+    }
+    const settleStarted = Date.now()
+    while (Date.now() - lastOutputAt.current < 150 && Date.now() - settleStarted < 600 && sameProcess()) {
+      await new Promise((resolve) => setTimeout(resolve, 25))
+    }
+    if (nativeInputDirty.current || !promptCanReceive(term, family!) || Date.now() - lastOutputAt.current < 150) {
+      throw new Error('CLI 尚未回到空白输入提示，或原生输入有未提交内容。请使用“原生终端操作”完成菜单、清空输入后返回；草稿已保留')
+    }
+    if (/^\s*[!/]/.test(text)) throw new Error('CLI 命令与 Shell 模式请在“原生终端操作”中输入，底部草稿已保留')
+    const paths = await Promise.all(images.map(async (image) => (await window.ringcode!.attachmentRead(image.id)).path))
+    const message = composerPayload(text, paths)
+    const payload = composerPaste(message, family!, window.ringcode?.platform === 'win32')
+    await flushStorageWrites()
+    // Reading images/storage is asynchronous. Recheck the exact process and prompt before writing.
+    if (!sameProcess() || !useAppStore.getState().terminals.some((t) => t.id === terminal.id && t.sessionId === terminal.sessionId) || !promptCanReceive(term, family!) || nativeInputDirty.current) {
+      throw new Error('终端状态已改变，草稿已保留')
+    }
+    const before = outputVersion.current
+    stagedImageIds.current = images.map((image) => image.id)
+    pendingInput.current = { text: message, paths }
+    refreshPresentation.current()
+    try {
+      generatedInput.current = true
+      try { term.input(payload) } finally { generatedInput.current = false }
+      // Wait for a parsed CLI repaint before emitting Enter; never concatenate the two writes.
+      const start = Date.now()
+      while (Date.now() - start < 2_000 && sameProcess()) {
+        if (outputVersion.current > before && Date.now() - lastOutputAt.current >= 100 && promptHasDraft(term, family!, message, paths)) break
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      if (!sameProcess() || outputVersion.current === before || !promptHasDraft(term, family!, message, paths) || !useAppStore.getState().terminals.some((t) => t.id === terminal.id && t.sessionId === terminal.sessionId)) {
+        nativeInputDirty.current = true
+        setNativeMode(true)
+        throw new Error('未确认 CLI 接收文本，未自动提交。请在原生终端检查已粘贴内容；草稿已保留')
+      }
+      useAppStore.getState().retainSessionImages(terminal.sessionId, images.map((image) => image.id))
+      await flushStorageWrites()
+      if (!sameProcess() || !promptHasDraft(term, family!, message, paths)) {
+        nativeInputDirty.current = true
+        setNativeMode(true)
+        throw new Error('CLI 状态已改变，未自动提交；请在原生终端检查，草稿已保留')
+      }
+      generatedInput.current = true
+      try { term.input('\r') } finally { generatedInput.current = false }
+      stagedImageIds.current = []
+      // Delivery to PTY is not an acknowledgement that the Agent has read the image.
+      useAppStore.getState().showToast('已提交给 CLI', 'success')
+      return true
+    } finally {
+      pendingInput.current = undefined
+      refreshPresentation.current()
+    }
+  }
 
   useEffect(() => {
     const term = new Terminal({
@@ -84,7 +177,26 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     term.loadAddon(new WebLinksAddon())
     // xterm 默认把 Ctrl+V 转成控制字符 0x16；交回 Chromium 后会触发
     // xterm 自带的 paste 事件，从而让不处理该控制字符的 CLI 也能粘贴。
-    term.attachCustomKeyEventHandler(handleTerminalKeyEvent)
+    term.attachCustomKeyEventHandler((event) => {
+      const mode = modeRef.current
+      if (mode.enhanced && !mode.nativeMode) {
+        if (event.ctrlKey && !event.altKey && !event.metaKey && event.key.toLowerCase() === 'c') {
+          if (event.type === 'keydown') {
+            event.preventDefault()
+            const selection = visibleTerminalSelection(term, nativeInputRegions(term, family!, pendingInput.current))
+            if (selection) window.ringcode?.writeClipboardText(selection)
+          }
+          return false
+        }
+        if (!mode.menuMode && event.type === 'keydown' && !event.ctrlKey && !event.altKey && !event.metaKey && (event.key.length === 1 || event.key === 'Enter' || event.key === 'Backspace')) {
+          event.preventDefault()
+          if (event.key.length === 1) insertDraft(event.key)
+          else inputRef.current?.focus()
+          return false
+        }
+      }
+      return handleTerminalKeyEvent(event)
+    })
     if (!containerRef.current) {
       term.dispose()
       return
@@ -95,7 +207,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       ? agentById(terminal.tool, appState.settings.customAgents ?? [])
       : undefined
     const terminalFamily = terminalAgent?.sourceFamily || terminal.tool
-    const keepLocalTextSelection = terminalFamily === 'codex' || terminalFamily === 'antigravity'
+    const keepLocalTextSelection = supportsComposer(terminalFamily) || terminalFamily === 'antigravity'
     const mouseModeSet = keepLocalTextSelection
       ? term.parser.registerCsiHandler({ prefix: '?', final: 'h' }, shouldBlockTerminalMouseMode)
       : undefined
@@ -106,15 +218,21 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     fitRef.current = fit
     const pasteTarget = {
       paste: (text: string) => {
+        if (modeRef.current.enhanced && !modeRef.current.nativeMode) return insertDraft(text)
         const pasted = pasteTerminalText(term, text, terminal.kind === 'ai' ? terminalFamily : undefined)
         if (!pasted) useAppStore.getState().showToast('当前 CLI 未启用安全多行粘贴，已阻止自动发送；请等待其启动完成后重试', 'info')
         return pasted
       },
-      focus: () => term.focus(),
-      getSelection: () => term.getSelection(),
+      focus: () => modeRef.current.enhanced && !modeRef.current.nativeMode && !modeRef.current.menuMode ? inputRef.current?.focus() : term.focus(),
+      getSelection: () => modeRef.current.enhanced && !modeRef.current.nativeMode && !modeRef.current.menuMode
+        ? visibleTerminalSelection(term, nativeInputRegions(term, terminalFamily!, pendingInput.current)) : term.getSelection(),
     }
     pasteTargetRef.current = pasteTarget
-    const unregisterTarget = registerTerminalTarget(terminal.id, pasteTarget)
+    const unregisterTarget = registerTerminalTarget(terminal.id, {
+      paste: (text) => modeRef.current.enhanced ? insertDraft(text) : pasteTarget.paste(text),
+      focus: pasteTarget.focus,
+      dispose: () => ptyClient.dispose(terminal.id),
+    })
 
     let cleanup: (() => void) | undefined
     let disposed = false
@@ -123,6 +241,64 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     const conversationInput = createConversationInputTracker()
 
     let sawOutput = false
+    let presentationFrame = 0
+    let viewportFrame = 0
+    const updatePresentation = () => {
+      const readonly = modeRef.current.enhanced && !modeRef.current.nativeMode && !modeRef.current.menuMode
+      if (term.options.cursorBlink === readonly) term.options.cursorBlink = !readonly
+      if (term.textarea) { term.textarea.readOnly = readonly; term.textarea.tabIndex = readonly ? -1 : 0 }
+      if (presentationFrame) return
+      presentationFrame = requestAnimationFrame(() => {
+        presentationFrame = 0
+        if (disposed || !containerRef.current) return
+        const mode = modeRef.current, readonly = mode.enhanced && !mode.nativeMode && !mode.menuMode
+        const screen = containerRef.current.querySelector('.xterm-screen')?.getBoundingClientRect()
+        const frame = containerRef.current.getBoundingClientRect(), b = term.buffer.active
+        const regions = readonly && screen?.height ? nativeInputRegions(term, terminalFamily!, pendingInput.current) : []
+        const masks = regions.flatMap((r) => {
+          const start = Math.max(r.startRow, b.viewportY), end = Math.min(r.endRow + 1, b.viewportY + term.rows)
+          const left = Math.max(0, r.startColumn), right = Math.min(term.cols, r.endColumn)
+          if (end <= start || right <= left || !screen) return []
+          const row = containerRef.current?.querySelector('.xterm-rows')?.children[Math.max(0, start - b.viewportY - 1)]
+          const span = row?.querySelector('span'), viewport = containerRef.current?.querySelector('.xterm-viewport')
+          const cellBackground = span ? getComputedStyle(span).backgroundColor : ''
+          const viewportBackground = viewport ? getComputedStyle(viewport).backgroundColor : ''
+          const opaque = (color: string) => color && color !== 'transparent' && !color.endsWith(', 0)')
+          const background = opaque(cellBackground) ? cellBackground : opaque(viewportBackground) ? viewportBackground : termTheme().background
+          return [{ top: screen.top - frame.top + (start - b.viewportY) * screen.height / term.rows,
+            left: screen.left - frame.left + left * screen.width / term.cols,
+            width: (right - left) * screen.width / term.cols,
+            height: (end - start) * screen.height / term.rows, background }]
+        })
+        setInputMasks((previous) => JSON.stringify(previous) === JSON.stringify(masks) ? previous : masks)
+      })
+    }
+    refreshPresentation.current = updatePresentation
+    const rendered = term.onRender(updatePresentation), scrolled = term.onScroll(updatePresentation)
+    nativeInputDirty.current = false
+    stagedImageIds.current = []
+    setProcessReady(false)
+    modeRef.current.menuMode = false
+    setMenuMode(false)
+    const parsed = term.onWriteParsed(() => {
+      outputVersion.current++
+      lastOutputAt.current = Date.now()
+      if (!viewportFrame) viewportFrame = requestAnimationFrame(() => {
+        viewportFrame = 0
+        if (!disposed && containerRef.current?.clientWidth) syncTerminalViewport(term)
+      })
+      updatePresentation()
+      const mode = modeRef.current
+      if (!mode.enhanced) return
+      const menu = terminalHasMenu(term, terminalFamily)
+      if (menu === mode.menuMode) return
+      // Update the key-routing ref before React renders or focus generates terminal events.
+      mode.menuMode = menu
+      setMenuMode(menu)
+      if (mode.active && mode.focused !== false && !mode.nativeMode) {
+        if (menu) { term.scrollToBottom(); term.focus() }
+      }
+    })
 
     const fail = (err: unknown) => {
       if (disposed) return
@@ -236,6 +412,13 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
           const sensitiveEnvKeys = current
             ? resolved?.envPlan.unsetKeys ?? []
             : (profile?.envs ?? []).filter((e) => e.sensitive && e.key).map((e) => e.key)
+          // In NO_COLOR, Claude's suggested next prompt is indistinguishable from a native draft.
+          // RingCode owns the draft in these sessions; keep suggestions off without editing CLI settings.
+          if (family === 'claude') {
+            env.CLAUDE_CODE_ENABLE_PROMPT_SUGGESTION = 'false'
+            // RingCode owns mouse selection and scrollback; Claude must emit the full history.
+            env.CLAUDE_CODE_DISABLE_ALTERNATE_SCREEN = '1'
+          }
           const ptyId = await ptyClient.spawn(terminal.id, {
             exe,
             args,
@@ -299,8 +482,16 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
 
       // 输入 -> pty
       const d1 = term.onData((d) => {
+        if (modeRef.current.enhanced && !generatedInput.current) {
+          if (!modeRef.current.nativeMode && !modeRef.current.menuMode && !/^\x1b\[\??[\d;]*[cRn]$/.test(d)) return
+          if (modeRef.current.nativeMode && !/^\x1b\[\??[\d;]*[cRn]$/.test(d)) nativeInputDirty.current = true
+          if (modeRef.current.nativeMode && d === '\r' && terminal.sessionId && stagedImageIds.current.length) {
+            useAppStore.getState().retainSessionImages(terminal.sessionId, stagedImageIds.current)
+            stagedImageIds.current = []
+          }
+        }
         ptyClient.write(terminal.id, d)
-        if (terminal.sessionId && conversationInput.push(d)) {
+        if (!modeRef.current.menuMode && terminal.sessionId && conversationInput.push(d)) {
           useAppStore.getState().markSessionConversationStarted(terminal.sessionId)
         }
         scheduleNativeLink(1_500)
@@ -326,6 +517,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       // 退出
       const d3 = ptyClient.onExit((tabId, code) => {
         if (tabId !== terminal.id) return
+        setProcessReady(false)
         term.write(`\r\n\x1b[38;5;245m[进程已退出，代码 ${code}]\x1b[0m\r\n`)
         void nativeLink.run()
         if (terminal.sessionId) {
@@ -361,7 +553,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       if (!containerRef.current || containerRef.current.clientWidth < 8) return
       try {
         fit.fit()
-        syncTerminalViewportOnShow(term)
+        syncTerminalViewport(term)
         if (ptyClient.isReal) ptyClient.resize(terminal.id, term.cols, term.rows)
       } catch {
         /* 容器尚未量好时 FitAddon 会抛错 */
@@ -379,6 +571,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         if (disposed) return
         if (ptyClient.isReal && !terminal.orphaned) {
           await spawnReal()
+          if (!disposed) setProcessReady(ptyClient.hasProcess(terminal.id))
         } else if (!ptyClient.isReal) {
           const pty = new MockPty(
             { out: (s) => term.write(s) },
@@ -392,7 +585,10 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         }
         if (disposed) return
         doFit()
-        term.focus()
+        if (modeRef.current.focused !== false) {
+          if (modeRef.current.enhanced && !modeRef.current.nativeMode && !modeRef.current.menuMode) inputRef.current?.focus()
+          else term.focus()
+        }
       } catch (err) {
         fail(err)
       }
@@ -412,6 +608,12 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       ro.disconnect()
       mouseModeSet?.dispose()
       mouseModeReset?.dispose()
+      parsed.dispose()
+      rendered.dispose()
+      scrolled.dispose()
+      cancelAnimationFrame(presentationFrame)
+      cancelAnimationFrame(viewportFrame)
+      refreshPresentation.current = () => {}
       cleanup?.()
       ptyClient.dispose(terminal.id)
       term.dispose()
@@ -426,6 +628,12 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [themeKey])
 
+  useEffect(() => {
+    refreshPresentation.current()
+    if (previousMenu.current && !menuMode && !nativeMode && active && focused !== false) inputRef.current?.focus()
+    previousMenu.current = menuMode
+  }, [nativeMode, menuMode, active, focused, themeKey])
+
   // 激活时重新 fit + 聚焦
   useEffect(() => {
     if (!active) return
@@ -433,7 +641,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       if (document.hidden) return
       requestAnimationFrame(() => {
         const term = termRef.current
-        if (term && containerRef.current?.clientWidth) syncTerminalViewportOnShow(term)
+        if (term && containerRef.current?.clientWidth) syncTerminalViewport(term)
       })
     }
     window.addEventListener('focus', syncOnRestore)
@@ -445,11 +653,14 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
           const term = termRef.current
           if (!term || !fitRef.current) return
           fitRef.current.fit()
-          syncTerminalViewportOnShow(term)
+          syncTerminalViewport(term)
           if (ptyClient.isReal) {
             ptyClient.resize(terminal.id, term.cols, term.rows)
           }
-          term.focus()
+          if (modeRef.current.focused !== false) {
+            if (modeRef.current.enhanced && !modeRef.current.nativeMode && !modeRef.current.menuMode) inputRef.current?.focus()
+            else term.focus()
+          }
         } catch {
           /* ignore */
         }
@@ -460,7 +671,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
       window.removeEventListener('focus', syncOnRestore)
       document.removeEventListener('visibilitychange', syncOnRestore)
     }
-  }, [active, terminal.id])
+  }, [active, focused, terminal.id])
 
   const onDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -484,7 +695,7 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
         .filter(Boolean)
     if (!paths.length) return
     if (!ptyClient.isReal || terminal.orphaned) return
-    ptyClient.write(terminal.id, paths.map(quoteForShell).join(' ') + ' ')
+    pasteTargetRef.current?.paste(paths.map(quoteForShell).join(' ') + ' ')
   }
   const onContextMenu = (e: React.MouseEvent) => {
     const pasteTarget = pasteTargetRef.current
@@ -514,15 +725,45 @@ export function TerminalView({ terminal, active }: { terminal: TerminalTab; acti
 
   return (
     <div
-      style={{ display: active ? 'block' : 'none', width: '100%', height: '100%', position: 'relative' }}
-      onDragOverCapture={onDragOver}
-      onDropCapture={onDrop}
-      onMouseDownCapture={onRightMouseEventCapture}
-      onMouseUpCapture={onRightMouseEventCapture}
-      onContextMenuCapture={onContextMenu}
-      onPasteCapture={onPasteCapture}
+      style={{ display: active ? 'flex' : 'none', flexDirection: 'column', width: '100%', height: '100%', position: 'relative', minHeight: 0 }}
     >
-      <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      <div className={`terminal-output-frame${outputOnly ? ' terminal-output-only' : ''}`}>
+      <div ref={containerRef} className="terminal-output" style={{ width: '100%', height: '100%', minHeight: 0 }}
+        onDragOverCapture={onDragOver} onDropCapture={onDrop}
+        onMouseDownCapture={onRightMouseEventCapture} onMouseUpCapture={(e) => {
+          onRightMouseEventCapture(e)
+          if (e.button === 0 && outputOnly && !termRef.current?.getSelection()) inputRef.current?.focus()
+        }}
+        onContextMenuCapture={onContextMenu} onPasteCapture={onPasteCapture} />
+      {outputOnly && inputMasks.map((mask, i) => <div key={i} className="terminal-input-mask" aria-hidden="true" style={mask} />)}
+      </div>
+      {enhanced && <TerminalComposer id={terminal.id} sessionId={terminal.sessionId} inputRef={inputRef} nativeMode={nativeMode} menuMode={menuMode}
+        disabled={!processReady || !!terminal.orphaned} send={send} latest={() => termRef.current?.scrollToBottom()}
+        interrupt={() => {
+          if (!ptyClient.hasProcess(terminal.id)) return
+          generatedInput.current = true
+          try { termRef.current?.input('\x1b') } finally { generatedInput.current = false }
+        }}
+        toggleNative={() => {
+          if (menuMode && !nativeMode) {
+            termRef.current?.scrollToBottom()
+            termRef.current?.focus()
+            return
+          }
+          if (nativeMode) {
+            if (termRef.current && !promptCanReceive(termRef.current, family!)) {
+              useAppStore.getState().showToast('请先退出菜单并清空原生输入，再返回底部输入框', 'info')
+              return
+            }
+            nativeInputDirty.current = false
+            stagedImageIds.current = []
+            setNativeMode(false)
+            requestAnimationFrame(() => inputRef.current?.focus())
+          } else {
+            setNativeMode(true)
+            termRef.current?.focus()
+          }
+        }} />}
       {terminal.orphaned ? (
         <div
           className="empty-state"

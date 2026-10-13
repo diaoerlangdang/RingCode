@@ -1,7 +1,7 @@
 import type { Terminal } from '@xterm/xterm'
 
-/** xterm does not update its DOM scroll range while its tab is display:none. */
-export function syncTerminalViewportOnShow(term: Terminal): boolean {
+/** Repair a stale DOM scroll range without resizing the buffer or its VT scroll margins. */
+export function syncTerminalViewport(term: Terminal): boolean {
   const viewport = term.element?.querySelector<HTMLElement>('.xterm-viewport')
   const screen = term.element?.querySelector<HTMLElement>('.xterm-screen')
   if (!viewport || !screen || !term.rows || !term.buffer.active.baseY) return false
@@ -11,10 +11,11 @@ export function syncTerminalViewportOnShow(term: Terminal): boolean {
   const maxScroll = viewport.scrollHeight - viewport.clientHeight
   if (maxScroll + rowHeight >= term.buffer.active.baseY * rowHeight) return false
 
-  // A same-size fit is a no-op. A synchronous one-row round trip refreshes the
-  // scroll area without changing the final terminal/PTY dimensions.
-  const { cols, rows } = term
-  term.resize(cols, rows + 1)
-  term.resize(cols, rows)
+  // xterm 5.5 has no public viewport refresh API. Keep this version-specific
+  // access here; the Electron integration test verifies it against real xterm.
+  const core = (term as Terminal & { _core?: { viewport?: { reset(): void; syncScrollArea(immediate: boolean): void } } })._core
+  if (!core?.viewport) return false
+  core.viewport.reset()
+  core.viewport.syncScrollArea(true)
   return true
 }

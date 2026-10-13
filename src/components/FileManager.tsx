@@ -7,7 +7,7 @@ import { runCommand } from '@/lib/commands'
 import { loadIgnoreMatcher, ALWAYS_IGNORE, type IgnoreMatcher } from '@/lib/gitignore'
 import { isDriveRoot, joinWinPath } from '@/lib/pathWin'
 import { quoteForShell } from '@/lib/shellQuote'
-import { ptyClient } from '@/lib/ptyClient'
+import { pasteToTerminal } from '@/lib/terminalRegistry'
 import { getFileCategory } from '@/lib/languages'
 import { isTypingTarget } from '@/hooks/useShortcuts'
 import { resolvePasteDestName } from '@/lib/fmPaste'
@@ -354,11 +354,14 @@ export function FileManager() {
 
   const sendToAgent = (p: string) => {
     const id = useAppStore.getState().activeTerminalId
-    if (!id || !ptyClient.isReal) {
+    if (!id) {
       showToast('请先启动 Agent 或终端，再拖入或插入路径', 'info')
       return
     }
-    ptyClient.write(id, quoteForShell(p) + ' ')
+    if (!pasteToTerminal(id, quoteForShell(p) + ' ')) {
+      showToast('终端尚未就绪，请稍后重试', 'info')
+      return
+    }
     showToast('已把路径插入当前终端', 'success')
   }
 

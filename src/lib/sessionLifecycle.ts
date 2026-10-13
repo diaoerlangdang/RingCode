@@ -23,6 +23,8 @@ export function shouldDiscardEmptySession(
 export function createConversationInputTracker(): { push: (data: string) => boolean } {
   let pendingCharacters = 0
   let escapeState: 'none' | 'escape' | 'csi' = 'none'
+  let csi = ''
+  let bracketedPaste = false
 
   return {
     push(data) {
@@ -34,7 +36,13 @@ export function createConversationInputTracker(): { push: (data: string) => bool
           continue
         }
         if (escapeState === 'csi') {
-          if (code >= 0x40 && code <= 0x7e) escapeState = 'none'
+          csi += ch
+          if (code >= 0x40 && code <= 0x7e) {
+            if (csi === '200~') bracketedPaste = true
+            if (csi === '201~') bracketedPaste = false
+            escapeState = 'none'
+            csi = ''
+          }
           continue
         }
         if (ch === '\u001b') {
@@ -42,6 +50,7 @@ export function createConversationInputTracker(): { push: (data: string) => bool
           continue
         }
         if (ch === '\r' || ch === '\n') {
+          if (bracketedPaste) continue
           if (pendingCharacters > 0) submitted = true
           pendingCharacters = 0
           continue

@@ -30,5 +30,9 @@ describe('terminalRegistry', () => {
     const success = pasteToTerminal('unknown-tab', 'code')
     expect(success).toBe(false)
   })
+  it('propagates a rejected paste rather than claiming that insertion succeeded', () => {
+    registerTerminalTarget('blocked', { paste: () => false, focus: vi.fn() })
+    expect(pasteToTerminal('blocked', 'draft')).toBe(false)
+  })
 })
 

@@ -729,7 +729,7 @@ export function RightPanel() {
   }
 
   const removeLocalSession = async (session: Session) => {
-    if (!(await showConfirm(`删除会话「${displayTitle(session.title, session.transcript)}」？仅删除本机记录，不影响 CLI 磁盘历史。`))) return
+    if (!(await showConfirm(`删除会话「${displayTitle(session.title, session.transcript)}」？将关闭关联终端，释放本机图片副本，不影响 CLI 磁盘历史。`))) return
     deleteSession(session.id)
     if (detail?.kind === 'local' && detail.sessionId === session.id) setDetail(null)
     showToast('已删除会话', 'info')

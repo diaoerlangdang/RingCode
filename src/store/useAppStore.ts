@@ -8,6 +8,8 @@ import { historyAliasKey, canonicalHistoryKey, migrateHistoryAliasKeys } from '@
 import { applyAutoSessionTitle } from '@/lib/sessionTitle'
 import { setVisibleHistoryExpansion } from '@/lib/historyGrouping'
 import { withoutRecentFile } from '@/lib/recentFiles'
+import { cleanUnusedImages, emptyTerminalDraft, type TerminalDraft } from '@/lib/attachments'
+import { terminalRegistry } from '@/lib/terminalRegistry'
 import type {
   AgentDef,
   AppSettings,
@@ -52,6 +54,9 @@ interface AppState {
   activeSessionId: string | null
   profiles: ToolProfile[]
   terminals: TerminalTab[]
+  terminalDrafts: Record<string, TerminalDraft>
+  setTerminalDraft: (id: string, draft: TerminalDraft) => void
+  retainSessionImages: (id: string, imageIds: string[]) => void
   activeTerminalId: string | null
   layout: LayoutState
   savedLayouts: SavedLayout[]
@@ -206,6 +211,15 @@ export const useAppStore = create<AppState>()(
       activeSessionId: null,
       profiles: seedProfiles(),
       terminals: [],
+      terminalDrafts: {},
+      setTerminalDraft: (id, draft) => set((s) => s.terminals.some((t) => t.id === id)
+        ? { terminalDrafts: { ...s.terminalDrafts, [id]: draft } }
+        : {}),
+      retainSessionImages: (id, imageIds) => set((s) => ({
+        sessions: s.sessions.map((session) => session.id === id
+          ? { ...session, imageIds: [...new Set([...(session.imageIds ?? []), ...imageIds])] }
+          : session),
+      })),
       activeTerminalId: null,
       layout: defaultLayout,
       savedLayouts: [],
@@ -316,6 +330,7 @@ export const useAppStore = create<AppState>()(
           resumable: false,
           launchPermission: opts?.permission,
           sourceSessionId: opts?.sourceSessionId,
+          imageIds: get().sessions.find((s) => s.id === opts?.sourceSessionId)?.imageIds?.slice(),
           sourceTitle: opts?.sourceTitle,
           autoTitled: !opts?.title,
           conversationStarted: false,
@@ -401,11 +416,17 @@ export const useAppStore = create<AppState>()(
       toggleFavoriteSession: (id) =>
         set((s) => ({ sessions: s.sessions.map((x) => (x.id === id ? { ...x, favorite: !x.favorite } : x)) })),
       deleteSession: (id) => {
+        const images = get().sessions.find((session) => session.id === id)?.imageIds ?? []
+        for (const terminal of get().terminals.filter((t) => t.sessionId === id)) {
+          terminalRegistry.get(terminal.id)?.dispose?.()
+          get().closeTerminal(terminal.id)
+        }
         void sqliteStorage.removeItem(transcriptKey(id))
         set((s) => ({
           sessions: s.sessions.filter((x) => x.id !== id),
           activeSessionId: s.activeSessionId === id ? null : s.activeSessionId,
         }))
+        void cleanUnusedImages(images).catch((error: Error) => get().showToast(error.message, 'error'))
       },
       setActiveSession: (id) => set({ activeSessionId: id }),
       setLastCloneId: (id, lastCloneId) =>
@@ -434,9 +455,11 @@ export const useAppStore = create<AppState>()(
           if (profile?.terminalStrategy === 'reuse-idle') {
             const idle = get().terminals.find((t) => t.kind === 'ai' && t.tool === opts.tool && t.orphaned)
             if (idle) {
+              const oldDraft = get().terminalDrafts[idle.id] ?? emptyTerminalDraft
               const permission: PermissionChoice | undefined =
                 opts.permission ?? (opts.autoMode ? 'auto' : undefined)
               set((s) => ({
+                terminalDrafts: { ...s.terminalDrafts, [idle.id]: emptyTerminalDraft },
                 terminals: s.terminals.map((t) =>
                   t.id === idle.id
                     ? {
@@ -455,6 +478,7 @@ export const useAppStore = create<AppState>()(
                 ),
                 activeTerminalId: idle.id,
               }))
+              void cleanUnusedImages(oldDraft.images.map((image) => image.id)).catch((error: Error) => get().showToast(error.message, 'error'))
               return idle.id
             }
           }
@@ -498,8 +522,14 @@ export const useAppStore = create<AppState>()(
           let active = s.activeTerminalId
           if (active === id) active = next[idx] ? next[idx].id : next[idx - 1]?.id ?? next[0]?.id ?? null
           const split = s.splitTerminalId === id ? null : s.splitTerminalId
+          const { [id]: removedDraft = emptyTerminalDraft, ...terminalDrafts } = s.terminalDrafts
+          const removedImages = [...removedDraft.images.map((image) => image.id), ...(discardSession ? session.imageIds ?? [] : [])]
+          if (removedImages.length) queueMicrotask(() => {
+            void cleanUnusedImages(removedImages).catch((error: Error) => get().showToast(error.message, 'error'))
+          })
           return {
             terminals: next,
+            terminalDrafts,
             sessions: discardSession
               ? s.sessions.filter((item) => item.id !== session.id)
               : interruptSession
@@ -677,6 +707,7 @@ export const useAppStore = create<AppState>()(
           ...p,
           terminals: restored.terminals,
           sessions: restored.sessions,
+          terminalDrafts: p.terminalDrafts ?? {},
           historyExpandedGroups: {
             local: p.historyExpandedGroups?.local ?? current.historyExpandedGroups.local,
             disk: p.historyExpandedGroups?.disk ?? current.historyExpandedGroups.disk,
@@ -692,6 +723,7 @@ export const useAppStore = create<AppState>()(
         historyExpandedGroups: s.historyExpandedGroups,
         profiles: s.profiles,
         terminals: s.terminals.map((t) => ({ ...t })), // 元数据保留，进程不恢复（TRM-006）
+        terminalDrafts: s.terminalDrafts,
         layout: s.layout,
         savedLayouts: s.savedLayouts,
         skills: s.skills,

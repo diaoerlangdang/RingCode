@@ -9,6 +9,9 @@ import { TerminalPane } from './TerminalPane'
 import { GitView } from './GitView'
 import { SkillView } from './SkillView'
 import { SearchView } from './SearchView'
+import { agentById } from '@/lib/agents'
+import { supportsComposer } from '@/lib/terminalComposer'
+import { ptyClient } from '@/lib/ptyClient'
 
 const TABS = [
   { key: 'fm', label: '文件管理器' },
@@ -22,6 +25,10 @@ const TABS = [
 export function CenterPane() {
   const layout = useAppStore((s) => s.layout)
   const setLayout = useAppStore((s) => s.setLayout)
+  const composerVisible = useAppStore((s) => ptyClient.isReal && s.terminals.some((t) =>
+    (t.id === s.activeTerminalId || (s.layout.terminalSplit && t.id === s.splitTerminalId)) && t.kind === 'ai' &&
+    supportsComposer(t.tool ? agentById(t.tool, s.settings.customAgents ?? [])?.sourceFamily || t.tool : undefined),
+  ))
   const centerTopTab = useAppStore((s) => s.centerTopTab)
   const setCenterTopTab = useAppStore((s) => s.setCenterTopTab)
   const [maximized, setMaximized] = useState<'editor' | 'preview' | 'split-preview' | null>(null)
@@ -133,7 +140,7 @@ export function CenterPane() {
         {renderTop()}
       </div>
       <Splitter direction="horizontal" onResize={onVResize} onResizeEnd={onVResizeEnd} onDoubleClick={() => setLayout({ centerSplit: 0.4 })} />
-      <div className="center-terminal" style={{ flex: 1, minHeight: 0 }}>
+      <div className="center-terminal" style={{ flex: 1, minHeight: composerVisible ? 320 : 0 }}>
         <TerminalPane />
       </div>
     </div>

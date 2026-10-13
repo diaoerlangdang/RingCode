@@ -28,6 +28,13 @@ export interface RingCodeApi {
   versions: { electron: string; chrome: string; node: string }
   isElectron: boolean
   readClipboardText: () => string
+  writeClipboardText: (text: string) => void
+  attachmentAdd: (name: string, bytes: Uint8Array) => Promise<import('@/lib/attachments').ImageAttachment>
+  attachmentClipboard: () => Promise<import('@/lib/attachments').ImageAttachment | null>
+  attachmentChoose: () => Promise<import('@/lib/attachments').ImageAttachment[]>
+  attachmentRead: (id: string) => Promise<{ path: string; dataUrl: string }>
+  attachmentStats: () => Promise<{ bytes: number; unusedBytes: number; count: number }>
+  attachmentClean: (ids?: string[]) => Promise<{ deleted: number; failed: number }>
   showTerminalContextMenu: (selection: string) => void
   openDirectoryDialog: () => Promise<string | null>
   revealInExplorer: (p: string) => Promise<void>

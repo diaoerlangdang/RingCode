@@ -107,7 +107,7 @@ export function TerminalPane() {
                   order: isRight ? 2 : 1,
                 }}
               >
-                <TerminalView terminal={t} active={isLeft || isRight} />
+                <TerminalView terminal={t} active={isLeft || isRight} focused={isLeft} />
               </div>
             )
           })}

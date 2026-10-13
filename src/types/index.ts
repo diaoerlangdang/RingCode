@@ -128,6 +128,8 @@ export interface Session {
   nativeTitled?: boolean
   /** 是否已提交过实际对话；false 的新建会话在关闭终端时可自动清理 */
   conversationStarted?: boolean
+  /** Managed image copies retained for the lifetime of this local session. */
+  imageIds?: string[]
 }
 
 /** 终端标签 */

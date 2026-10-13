@@ -8,6 +8,7 @@ import { promises as fsp } from 'node:fs'
 import { registerPtyHandlers, disposeAllPty } from './pty'
 import { registerCredHandlers } from './cred'
 import { registerDbHandlers } from './db'
+import { registerAttachmentHandlers } from './attachmentIpc'
 import { registerEnvHandlers } from './env'
 import { registerGitHandlers } from './git'
 import { registerSkillHandlers } from './skills'
@@ -368,6 +369,7 @@ if (!hasSingleInstanceLock) {
     registerCloneModelHandlers()
     writeAppLaunchPointer(currentAppLaunchPointer())
     registerDbHandlers()
+    registerAttachmentHandlers()
     registerEnvHandlers()
     registerGitHandlers()
     registerSkillHandlers()

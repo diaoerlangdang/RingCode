@@ -17,11 +17,12 @@ function getDb(): Database.Database {
   return db
 }
 
-export function registerDbHandlers(): void {
-  const get = (key: string): string | null => {
+export function readStoredValue(key: string): string | null {
     const row = getDb().prepare('SELECT value FROM kv WHERE key = ?').get(key) as { value: string } | undefined
     return row ? row.value : null
-  }
+}
+
+export function registerDbHandlers(): void {
   const set = (key: string, value: string): void => {
     getDb()
       .prepare('INSERT INTO kv (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value')
@@ -31,7 +32,7 @@ export function registerDbHandlers(): void {
     getDb().prepare('DELETE FROM kv WHERE key = ?').run(key)
   }
 
-  ipcMain.handle('store:get', (_e, key: string) => get(key))
+  ipcMain.handle('store:get', (_e, key: string) => readStoredValue(key))
   ipcMain.handle('store:set', (_e, key: string, value: string) => set(key, value))
   ipcMain.handle('store:del', (_e, key: string) => del(key))
 }

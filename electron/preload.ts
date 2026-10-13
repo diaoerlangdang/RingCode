@@ -11,6 +11,13 @@ const api = {
   },
   isElectron: true,
   readClipboardText: (): string => clipboard.readText(),
+  writeClipboardText: (text: string): void => clipboard.writeText(text),
+  attachmentAdd: (name: string, bytes: Uint8Array) => ipcRenderer.invoke('attachment:add', name, bytes),
+  attachmentClipboard: () => ipcRenderer.invoke('attachment:clipboard'),
+  attachmentChoose: () => ipcRenderer.invoke('attachment:choose'),
+  attachmentRead: (id: string) => ipcRenderer.invoke('attachment:read', id),
+  attachmentStats: () => ipcRenderer.invoke('attachment:stats'),
+  attachmentClean: (ids?: string[]) => ipcRenderer.invoke('attachment:clean', ids),
   showTerminalContextMenu: (selection: string): void => ipcRenderer.send('terminal:contextMenu', selection),
   // 原生目录选择（备选 FS Access API）
   openDirectoryDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:openDirectory'),

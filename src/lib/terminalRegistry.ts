@@ -1,6 +1,7 @@
 export interface TerminalTarget {
-  paste: (text: string) => void
+  paste: (text: string) => boolean | void
   focus: () => void
+  dispose?: () => void
 }
 
 class TerminalRegistry {
@@ -23,8 +24,7 @@ class TerminalRegistry {
     const target = this.targets.get(id)
     if (!target) return false
     target.focus()
-    target.paste(text)
-    return true
+    return target.paste(text) !== false
   }
 
   clear(): void {
